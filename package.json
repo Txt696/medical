@@ -1,0 +1,20 @@
+{
+  "name": "medical-spravka",
+  "version": "1.0.0",
+  "description": "Аптечная справочная: поиск лекарств и сравнение цен в аптеках, админка для аптек с ручным добавлением и импортом из текста",
+  "main": "src/server.js",
+  "private": true,
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning src/server.js",
+    "dev": "node --no-warnings=ExperimentalWarning --watch src/server.js",
+    "seed": "node --no-warnings=ExperimentalWarning scripts/seed.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.3.0"
+  }
+}
