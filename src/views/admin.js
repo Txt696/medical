@@ -139,7 +139,7 @@ const SAMPLE_FREE = `Парацетамол таб. 500мг №20 — 25.50
 Нурофен таб. п/о 200мг №10 145 руб
 Но-шпа таб. 40мг №24 210`;
 
-function importForm(ctx, { pharmacies, pharmacyId, text = '', mode = 'upsert' }) {
+function importForm(ctx, { pharmacies, pharmacyId, text = '', mode = 'upsert', stock = 'replace' }) {
   const body = html`
   <div class="page-head"><h1>Импорт прайс-листа</h1></div>
   <div class="with-sidebar sidebar-right">
@@ -154,6 +154,12 @@ function importForm(ctx, { pharmacies, pharmacyId, text = '', mode = 'upsert' })
         <legend>Режим</legend>
         <label class="check"><input type="radio" name="mode" value="upsert" ${mode !== 'replace' ? 'checked' : ''}> Добавить новые и обновить цены существующих</label>
         <label class="check"><input type="radio" name="mode" value="replace" ${mode === 'replace' ? 'checked' : ''}> Полная замена: товары, которых нет в списке, будут удалены</label>
+      </fieldset>
+      <fieldset>
+        <legend>Остатки</legend>
+        <label class="check"><input type="radio" name="stock" value="replace" ${stock !== 'add' ? 'checked' : ''}> Обновить остатки из файла (заменить текущие)</label>
+        <label class="check"><input type="radio" name="stock" value="add" ${stock === 'add' ? 'checked' : ''}> Прибавить к остаткам на складе (приход товара)</label>
+        <p class="muted small">Если у строки остаток не указан, текущий остаток не меняется. Цена в любом случае берётся из файла.</p>
       </fieldset>
       <div class="form-actions"><button class="btn">Проверить →</button><span class="muted small">На следующем шаге вы увидите, как распознан каждый товар.</span></div>
     </form>
@@ -171,7 +177,15 @@ function importForm(ctx, { pharmacies, pharmacyId, text = '', mode = 'upsert' })
   return page(ctx, 'Импорт', body);
 }
 
-function importPreview(ctx, { pharmacy, parsed, text, mode, summary, toDelete }) {
+const qtyText = (q) => (q === null || q === undefined ? 'есть' : q);
+
+function stockChange(r) {
+  if (r.oldQty === undefined) return qtyText(r.newQty);
+  if (r.oldQty === r.newQty) return html`<span class="muted">${qtyText(r.newQty)}</span>`;
+  return html`<span class="muted">${qtyText(r.oldQty)} →</span> <strong>${qtyText(r.newQty)}</strong>`;
+}
+
+function importPreview(ctx, { pharmacy, parsed, text, mode, stock, summary, toDelete }) {
   const cur = ctx.settings.currency;
   const modeLabel = { header: 'таблица с заголовком', positional: 'таблица без заголовка', free: 'свободный текст' }[parsed.mode];
   const delimLabel = { '\t': 'табуляция', ';': '«;»', ',': '«,»', '|': '«|»' }[parsed.delimiter] || '—';
@@ -184,22 +198,25 @@ function importPreview(ctx, { pharmacy, parsed, text, mode, summary, toDelete })
     <div class="stat ${summary.errors ? 'stat-bad' : ''}"><div class="stat-num">${summary.errors}</div><div class="muted">строк с ошибкой (пропустятся)</div></div>
     ${mode === 'replace' ? html`<div class="stat ${toDelete ? 'stat-bad' : ''}"><div class="stat-num">${toDelete}</div><div class="muted">будет удалено</div></div>` : ''}
   </div>
+  <p class="small"><strong>Остатки:</strong> ${stock === 'add' ? 'количество из файла прибавляется к текущему остатку' : 'остаток заменяется количеством из файла'}.</p>
   <p class="muted small">Формат: ${modeLabel}${parsed.delimiter ? `; разделитель: ${delimLabel}` : ''}${parsed.columns ? html`; колонки: ${parsed.columns.map((c) => (c ? FIELD_LABELS[c] : '(пропуск)')).join(', ')}` : ''}.</p>
   <div class="table-wrap"><table class="table">
-    <thead><tr><th>#</th><th>Название</th><th>Форма</th><th>Дозировка</th><th>Упак.</th><th>Производитель</th><th class="num">Цена</th><th class="num">Остаток</th><th>Статус</th></tr></thead>
+    <thead><tr><th>#</th><th>Название</th><th>Форма</th><th>Дозировка</th><th>Упак.</th><th>Производитель</th><th class="num">Цена</th><th class="num">В файле</th><th class="num">Станет</th><th>Статус</th></tr></thead>
     <tbody>${parsed.rows.map((r) => html`<tr class="${r.error ? 'row-error' : ''}">
       <td class="muted">${r.line}</td><td>${r.drug.name}</td><td>${r.drug.form}</td><td>${r.drug.dosage}</td><td>${r.drug.pack}</td><td>${r.drug.manufacturer}</td>
       <td class="num">${Number.isNaN(r.price) ? '—' : money(r.price, cur)}</td><td class="num">${r.quantity ?? ''}</td>
+      <td class="num small">${r.error ? '' : stockChange(r)}</td>
       <td class="small">${r.error ? html`<span class="err">${r.error}</span><div class="muted mono">${r.raw}</div>`
         : r.status === 'new' ? html`<span class="badge badge-new">новый препарат</span>`
         : r.status === 'update' ? html`<span class="badge">обновит цену${r.oldPrice !== undefined ? html` (было ${money(r.oldPrice, cur)})` : ''}</span>`
-        : r.status === 'dup' ? html`<span class="muted">повтор, будет использована последняя строка</span>`
+        : r.status === 'dup' ? html`<span class="muted">повтор: ${stock === 'add' ? 'остатки суммируются, цена' : 'будет использована'} из последней строки</span>`
         : html`<span class="badge badge-ok">из каталога</span>`}</td>
     </tr>`)}</tbody></table></div>
   <form method="post" action="/admin/import/apply" class="form-actions sticky-actions">
     ${csrf(ctx)}
     <input type="hidden" name="pharmacy" value="${pharmacy.id}">
     <input type="hidden" name="mode" value="${mode}">
+    <input type="hidden" name="stock" value="${stock}">
     <textarea name="text" hidden>${text}</textarea>
     <button class="btn" ${summary.ok ? '' : 'disabled'}>Загрузить ${summary.ok} ${plural(summary.ok, 'позицию', 'позиции', 'позиций')}</button>
     <button class="btn btn-ghost" formaction="/admin/import/edit">← Исправить текст</button>

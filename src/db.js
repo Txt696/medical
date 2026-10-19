@@ -174,12 +174,28 @@ function getDrug(id) {
   return db.prepare('SELECT * FROM drugs WHERE id = ?').get(id);
 }
 
-function upsertOffer(pharmacyId, drugId, price, quantity) {
+// stock: 'set'     — quantity is written as is (empty = "в наличии" without a number);
+//        'replace' — quantity from the import replaces the current one, empty keeps it;
+//        'add'     — quantity from the import is added to the current one, empty keeps it.
+const STOCK_SQL = {
+  set: 'excluded.quantity',
+  replace: 'COALESCE(excluded.quantity, offers.quantity)',
+  add: 'CASE WHEN excluded.quantity IS NULL THEN offers.quantity ELSE COALESCE(offers.quantity, 0) + excluded.quantity END',
+};
+
+function upsertOffer(pharmacyId, drugId, price, quantity, stock = 'set') {
   db.prepare(`
     INSERT INTO offers (pharmacy_id, drug_id, price, quantity, updated_at)
     VALUES (?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(pharmacy_id, drug_id) DO UPDATE SET price = excluded.price, quantity = excluded.quantity, updated_at = excluded.updated_at`)
+    ON CONFLICT(pharmacy_id, drug_id) DO UPDATE SET price = excluded.price, quantity = ${STOCK_SQL[stock]}, updated_at = excluded.updated_at`)
     .run(pharmacyId, drugId, price, quantity ?? null);
+}
+
+// Quantity after applying an imported value to the current one (mirrors STOCK_SQL).
+function nextStock(current, incoming, stock) {
+  if (incoming === null || incoming === undefined) return current ?? null;
+  if (stock === 'add') return (current ?? 0) + incoming;
+  return incoming;
 }
 
 // ---------- auth ----------
@@ -217,5 +233,5 @@ function transaction(fn) {
 
 module.exports = {
   db, DB_PATH, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findOrCreateDrug, updateDrug,
-  getDrug, upsertOffer, hashPassword, verifyPassword, createUser, transaction, DRUG_FIELDS,
+  getDrug, upsertOffer, nextStock, hashPassword, verifyPassword, createUser, transaction, DRUG_FIELDS,
 };

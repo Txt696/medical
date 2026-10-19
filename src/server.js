@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const express = require('express');
 const {
   db, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findOrCreateDrug, updateDrug, getDrug,
-  upsertOffer, hashPassword, verifyPassword, createUser, transaction,
+  upsertOffer, nextStock, hashPassword, verifyPassword, createUser, transaction,
 } = require('./db');
 const { parseImport, parsePrice, parseQuantity } = require('./importer');
 const pub = require('./views/public');
@@ -460,14 +460,17 @@ admin.get('/import', (req, res) => {
 
 admin.post('/import/edit', (req, res) => {
   res.send(String(adm.importForm(ctx(req), {
-    pharmacies: allPharmacies(), pharmacyId: pharmacyFor(req), text: req.body.text || '', mode: req.body.mode,
+    pharmacies: allPharmacies(), pharmacyId: pharmacyFor(req), text: req.body.text || '', mode: req.body.mode, stock: importStock(req),
   })));
 });
 
-function analyseImport(pharmacyId, text) {
+const importStock = (req) => (req.body.stock === 'add' ? 'add' : 'replace');
+
+function analyseImport(pharmacyId, text, stock) {
   const parsed = parseImport(text);
   const summary = { ok: 0, newDrugs: 0, updates: 0, errors: 0 };
   const lastByKey = new Map();
+  const stockByKey = new Map();
   const newKeys = new Set();
   const keptDrugIds = new Set();
   for (const r of parsed.rows) {
@@ -477,13 +480,19 @@ function analyseImport(pharmacyId, text) {
     if (lastByKey.has(key)) lastByKey.get(key).status = 'dup';
     lastByKey.set(key, r);
     const existing = findDrugByKey(d);
+    const offer = existing && db.prepare('SELECT price, quantity FROM offers WHERE pharmacy_id = ? AND drug_id = ?').get(pharmacyId, existing.id);
+    if (!stockByKey.has(key)) stockByKey.set(key, { has: !!offer, qty: offer ? offer.quantity : null });
+    const st = stockByKey.get(key);
+    r.oldQty = st.has ? st.qty : undefined;
+    r.newQty = st.has ? nextStock(st.qty, r.quantity, stock) : r.quantity;
+    st.has = true;
+    st.qty = r.newQty;
     if (!existing) {
       r.status = 'new';
       newKeys.add(key);
       continue;
     }
     keptDrugIds.add(existing.id);
-    const offer = db.prepare('SELECT price FROM offers WHERE pharmacy_id = ? AND drug_id = ?').get(pharmacyId, existing.id);
     r.status = offer ? 'update' : 'existing';
     if (offer) r.oldPrice = offer.price;
   }
@@ -503,19 +512,21 @@ admin.post('/import/preview', (req, res) => {
   if (!pharmacyId) return res.send(String(adm.noPharmacies(ctx(req))));
   const text = String(req.body.text || '');
   const mode = req.body.mode === 'replace' ? 'replace' : 'upsert';
+  const stock = importStock(req);
   const pharmacy = db.prepare('SELECT * FROM pharmacies WHERE id = ?').get(pharmacyId);
-  const { parsed, summary, toDelete } = analyseImport(pharmacyId, text);
+  const { parsed, summary, toDelete } = analyseImport(pharmacyId, text, stock);
   if (!parsed.rows.length) {
     flash(res, 'Текст пустой — нечего импортировать', 'error');
     return res.redirect(`/admin/import${req.user.role === 'admin' ? `?pharmacy=${pharmacyId}` : ''}`);
   }
-  res.send(String(adm.importPreview(ctx(req), { pharmacy, parsed, text, mode, summary, toDelete })));
+  res.send(String(adm.importPreview(ctx(req), { pharmacy, parsed, text, mode, stock, summary, toDelete })));
 });
 
 admin.post('/import/apply', (req, res) => {
   const pharmacyId = pharmacyFor(req);
   if (!pharmacyId) return res.send(String(adm.noPharmacies(ctx(req))));
   const mode = req.body.mode === 'replace' ? 'replace' : 'upsert';
+  const stock = importStock(req);
   const parsed = parseImport(String(req.body.text || ''));
   const good = parsed.rows.filter((r) => !r.error);
   if (!good.length) {
@@ -529,7 +540,7 @@ admin.post('/import/apply', (req, res) => {
       const { drug, created: isNew } = findOrCreateDrug(r.drug);
       if (isNew) created++;
       ids.add(drug.id);
-      upsertOffer(pharmacyId, drug.id, r.price, r.quantity);
+      upsertOffer(pharmacyId, drug.id, r.price, r.quantity, stock);
     }
     let removed = 0;
     if (mode === 'replace') {
@@ -539,7 +550,7 @@ admin.post('/import/apply', (req, res) => {
     }
     return { count: ids.size, created, removed };
   });
-  flash(res, `Импорт завершён: загружено ${result.count} позиций, новых препаратов в каталоге — ${result.created}${mode === 'replace' ? `, удалено — ${result.removed}` : ''}.`);
+  flash(res, `Импорт завершён: загружено ${result.count} позиций, новых препаратов в каталоге — ${result.created}${mode === 'replace' ? `, удалено — ${result.removed}` : ''}. Остатки ${stock === 'add' ? 'прибавлены к текущим' : 'обновлены из файла'}.`);
   res.redirect(`/admin/offers${req.user.role === 'admin' ? `?pharmacy=${pharmacyId}` : ''}`);
 });
 

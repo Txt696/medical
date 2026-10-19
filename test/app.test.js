@@ -122,3 +122,28 @@ test('html is escaped', async () => {
   assert.ok(!r.text.includes('<script>alert(1)'));
   assert.ok(r.text.includes('&lt;script&gt;'));
 });
+
+test('import stock: replace from file or add to current stock', async () => {
+  const c = client();
+  await c.login('ph2', 'secret1');
+  const qty = () => db.prepare("SELECT o.quantity FROM offers o JOIN drugs d ON d.id = o.drug_id WHERE o.pharmacy_id = 2 AND d.name = 'Склад'").get().quantity;
+
+  await c.post('/admin/import/apply', { text: 'Склад 10мг №5 50 руб 10 шт', mode: 'upsert', stock: 'replace' });
+  assert.equal(qty(), 10);
+
+  let r = await c.post('/admin/import/preview', { text: 'Склад 10мг №5 50 руб 5 шт', mode: 'upsert', stock: 'add' });
+  assert.match(r.text, /10 →<\/span> <strong>15/);
+  await c.post('/admin/import/apply', { text: 'Склад 10мг №5 50 руб 5 шт', mode: 'upsert', stock: 'add' });
+  assert.equal(qty(), 15);
+
+  // duplicates are summed when adding
+  await c.post('/admin/import/apply', { text: 'Склад 10мг №5 50 руб 1 шт\nСклад 10мг №5 55 руб 2 шт', mode: 'upsert', stock: 'add' });
+  assert.equal(qty(), 18);
+
+  // no quantity in the file keeps current stock
+  await c.post('/admin/import/apply', { text: 'Склад 10мг №5 60', mode: 'upsert', stock: 'replace' });
+  assert.equal(qty(), 18);
+
+  await c.post('/admin/import/apply', { text: 'Склад 10мг №5 60 руб 3 шт', mode: 'upsert', stock: 'replace' });
+  assert.equal(qty(), 3);
+});
