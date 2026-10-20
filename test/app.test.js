@@ -147,3 +147,24 @@ test('import stock: replace from file or add to current stock', async () => {
   await c.post('/admin/import/apply', { text: 'Склад 10мг №5 60 руб 3 шт', mode: 'upsert', stock: 'replace' });
   assert.equal(qty(), 3);
 });
+
+test('import matches a card even if the file has no form / pack, but only when unambiguous', async () => {
+  const c = client();
+  await c.login('admin', 'admin123');
+  for (const dosage of ['200 мг', '400 мг']) {
+    await c.post('/admin/drugs/new', { name: 'Мягкий', form: 'таблетки', dosage, pack: '№10' });
+  }
+  const before = db.prepare("SELECT COUNT(*) AS n FROM drugs WHERE name = 'Мягкий'").get().n;
+  assert.equal(before, 2);
+
+  let r = await c.post('/admin/import/preview', { pharmacy: '1', text: 'Название;Дозировка;Цена;Остаток\nМягкий;400мг;70;3\nМягкий;;50;1', mode: 'upsert' });
+  assert.match(r.text, /→ <a href="\/drug\/\d+" target="_blank">Мягкий таблетки 400 мг №10/);
+  await c.post('/admin/import/apply', { pharmacy: '1', text: 'Название;Дозировка;Цена;Остаток\nМягкий;400мг;70;3\nМягкий;;50;1', mode: 'upsert' });
+
+  const cards = db.prepare("SELECT * FROM drugs WHERE name = 'Мягкий' ORDER BY id").all();
+  // 400 mg found despite the missing form and pack; name only is ambiguous -> new card
+  assert.equal(cards.length, 3);
+  const offer = db.prepare('SELECT * FROM offers WHERE pharmacy_id = 1 AND drug_id = ?').get(cards[1].id);
+  assert.equal(offer.price, 70);
+  assert.equal(offer.quantity, 3);
+});

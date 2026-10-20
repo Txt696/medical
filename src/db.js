@@ -137,20 +137,35 @@ function findDrugByKey(d) {
   return db.prepare('SELECT * FROM drugs WHERE norm_key = ?').get(drugKey(d));
 }
 
+// Exact match first. Otherwise, if the input leaves form / dosage / pack empty,
+// treat them as "any": a card with the same name and the same filled fields
+// matches, but only when it is the only such card (no guessing between 200 and 400 mg).
+function findDrug(d) {
+  const exact = findDrugByKey(d);
+  if (exact) return exact;
+  const [name, ...parts] = drugKey(d).split('|');
+  if (!name || parts.every(Boolean)) return undefined;
+  const prefix = `${name}|`;
+  const candidates = db.prepare('SELECT * FROM drugs WHERE substr(norm_key, 1, ?) = ?').all(prefix.length, prefix)
+    .filter((c) => c.norm_key.split('|').slice(1).every((v, i) => !parts[i] || v === parts[i]));
+  return candidates.length === 1 ? { ...candidates[0], loose: true } : undefined;
+}
+
 // Returns existing drug if the same name/form/dosage/pack already exists,
 // otherwise creates a new card.
 function findOrCreateDrug(input) {
   const d = cleanDrug(input);
   if (!d.name) throw new Error('Не указано название препарата');
-  const existing = findDrugByKey(d);
+  const existing = findDrug(d);
   if (existing) {
     // fill empty fields of the existing card with new data
     const patch = {};
     for (const f of ['inn', 'manufacturer', 'country', 'category', 'description']) {
       if (!existing[f] && d[f]) patch[f] = d[f];
     }
-    if (Object.keys(patch).length) updateDrug(existing.id, { ...existing, ...patch });
-    return { drug: { ...existing, ...patch }, created: false };
+    const { loose: _, ...card } = existing;
+    if (Object.keys(patch).length) updateDrug(card.id, { ...card, ...patch });
+    return { drug: { ...card, ...patch }, created: false };
   }
   const info = db.prepare(`
     INSERT INTO drugs (name, inn, form, dosage, pack, manufacturer, country, category, rx, description, norm_key, search)
@@ -232,6 +247,6 @@ function transaction(fn) {
 }
 
 module.exports = {
-  db, DB_PATH, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findOrCreateDrug, updateDrug,
+  db, DB_PATH, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findDrug, findOrCreateDrug, updateDrug,
   getDrug, upsertOffer, nextStock, hashPassword, verifyPassword, createUser, transaction, DRUG_FIELDS,
 };

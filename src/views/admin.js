@@ -171,7 +171,7 @@ function importForm(ctx, { pharmacies, pharmacyId, text = '', mode = 'upsert', s
       <p><strong>2. Таблица без заголовка</strong> — последние две колонки: цена и остаток, первые: название, форма, дозировка, упаковка, производитель.</p>
       <p><strong>3. Свободный текст</strong> — одна позиция в строке, цена в конце. Форма, дозировка и №упаковки выделяются из названия автоматически.</p>
       <pre>${SAMPLE_FREE}</pre>
-      <p class="small muted">Строки, начинающиеся с «#», пропускаются. Если препарат с таким же названием, формой, дозировкой и упаковкой уже есть в каталоге — цена привяжется к нему, иначе будет создана новая карточка.</p>
+      <p class="small muted">Строки, начинающиеся с «#», пропускаются. Если препарат с таким же названием, формой, дозировкой и упаковкой уже есть в каталоге — цена привяжется к нему. Если форма, дозировка или упаковка не указаны, ищется единственный препарат с таким названием и совпадающими остальными полями. Иначе будет создана новая карточка.</p>
     </aside>
   </div>`;
   return page(ctx, 'Импорт', body);
@@ -206,7 +206,7 @@ function importPreview(ctx, { pharmacy, parsed, text, mode, stock, summary, toDe
       <td class="muted">${r.line}</td><td>${r.drug.name}</td><td>${r.drug.form}</td><td>${r.drug.dosage}</td><td>${r.drug.pack}</td><td>${r.drug.manufacturer}</td>
       <td class="num">${Number.isNaN(r.price) ? '—' : money(r.price, cur)}</td><td class="num">${r.quantity ?? ''}</td>
       <td class="num small">${r.error ? '' : stockChange(r)}</td>
-      <td class="small">${r.error ? html`<span class="err">${r.error}</span><div class="muted mono">${r.raw}</div>`
+      <td class="small">${r.matched && r.status !== 'dup' ? html`<div class="muted">→ <a href="/drug/${r.matched.id}" target="_blank">${drugTitle(r.matched)}</a></div>` : ''}${r.error ? html`<span class="err">${r.error}</span><div class="muted mono">${r.raw}</div>`
         : r.status === 'new' ? html`<span class="badge badge-new">новый препарат</span>`
         : r.status === 'update' ? html`<span class="badge">обновит цену${r.oldPrice !== undefined ? html` (было ${money(r.oldPrice, cur)})` : ''}</span>`
         : r.status === 'dup' ? html`<span class="muted">повтор: ${stock === 'add' ? 'остатки суммируются, цена' : 'будет использована'} из последней строки</span>`

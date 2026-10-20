@@ -3,7 +3,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const express = require('express');
 const {
-  db, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findOrCreateDrug, updateDrug, getDrug,
+  db, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findDrug, findOrCreateDrug, updateDrug, getDrug,
   upsertOffer, nextStock, hashPassword, verifyPassword, createUser, transaction,
 } = require('./db');
 const { parseImport, parsePrice, parseQuantity } = require('./importer');
@@ -476,10 +476,11 @@ function analyseImport(pharmacyId, text, stock) {
   for (const r of parsed.rows) {
     if (r.error) { summary.errors++; continue; }
     const d = cleanDrug(r.drug);
-    const key = drugKey(d);
+    const existing = findDrug(d);
+    const key = existing ? `#${existing.id}` : drugKey(d);
     if (lastByKey.has(key)) lastByKey.get(key).status = 'dup';
     lastByKey.set(key, r);
-    const existing = findDrugByKey(d);
+    if (existing && existing.loose) r.matched = existing;
     const offer = existing && db.prepare('SELECT price, quantity FROM offers WHERE pharmacy_id = ? AND drug_id = ?').get(pharmacyId, existing.id);
     if (!stockByKey.has(key)) stockByKey.set(key, { has: !!offer, qty: offer ? offer.quantity : null });
     const st = stockByKey.get(key);
