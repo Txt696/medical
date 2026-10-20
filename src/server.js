@@ -3,10 +3,11 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const express = require('express');
 const {
-  db, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findDrug, findOrCreateDrug, updateDrug, getDrug,
+  db, getSettings, setSetting, deleteSetting, norm, drugKey, cleanDrug, findDrugByKey, findDrug, findOrCreateDrug, updateDrug, getDrug,
   upsertOffer, nextStock, hashPassword, verifyPassword, createUser, transaction,
 } = require('./db');
 const { parseImport, parsePrice, parseQuantity } = require('./importer');
+const { LANGS, makeT, translate, AppError } = require('./i18n');
 const pub = require('./views/public');
 const adm = require('./views/admin');
 
@@ -51,6 +52,10 @@ app.use((req, res, next) => {
   req.cookies = parseCookies(req.headers.cookie);
   req.body = req.body || {};
 
+  req.settings = getSettings();
+  req.lang = [req.cookies.lang, req.settings.default_lang, 'ru'].find((l) => LANGS[l]);
+  req.t = makeT(req.lang);
+
   // CSRF: double-submit token, checked on every POST
   let token = req.cookies.csrf;
   if (!token || !/^[a-f0-9]{32}$/.test(token)) {
@@ -59,7 +64,7 @@ app.use((req, res, next) => {
   }
   req.csrf = token;
   if (req.method === 'POST' && (!req.cookies.csrf || req.body._csrf !== req.cookies.csrf)) {
-    return res.status(403).send('Сессия устарела. Вернитесь назад, обновите страницу и повторите действие.');
+    return res.status(403).send(req.t('err.session_expired'));
   }
 
   req.user = null;
@@ -87,10 +92,32 @@ function flash(res, message, type = 'success') {
 }
 
 function ctx(req) {
+  const raw = req.settings;
+  const { lang, t } = req;
+  const settings = {
+    ...raw,
+    site_name: raw[`site_name_${lang}`] || t('site.name'),
+    site_tagline: raw[`site_tagline_${lang}`] || t('site.tagline'),
+  };
   return {
-    settings: getSettings(), user: req.user, csrf: req.csrf, flash: req.flash, path: req.path, query: req.query,
+    settings, rawSettings: raw, lang, locale: LANGS[lang].locale, t, tIn: translate,
+    user: req.user, csrf: req.csrf, flash: req.flash, path: req.path, query: req.query,
   };
 }
+
+// Message of an error thrown with a translation key (AppError), or the raw message.
+const errText = (req, e) => (e.key ? req.t(e.key, e.params) : e.message);
+
+app.get('/lang/:code', (req, res) => {
+  if (LANGS[req.params.code]) setCookie(res, 'lang', req.params.code, { maxAge: 60 * 60 * 24 * 365 });
+  // go back to the same page, never to another site
+  let back = '/';
+  try {
+    const ref = new URL(req.get('Referer') || '/', `http://${req.get('host')}`);
+    if (ref.host === req.get('host')) back = ref.pathname + ref.search;
+  } catch { /* ignore */ }
+  res.redirect(back);
+});
 
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 const intParam = (v, def = 1) => {
@@ -209,7 +236,7 @@ app.get('/catalog', (req, res) => {
 
 app.get('/drug/:id', (req, res) => {
   const drug = getDrug(intParam(req.params.id, 0));
-  if (!drug) return res.status(404).send(String(pub.notFound(ctx(req), 'Препарат не найден')));
+  if (!drug) return res.status(404).send(String(pub.notFound(ctx(req), req.t('notfound.drug'))));
   const city = str(req.query.city);
   const sort = ['price', 'price_desc', 'updated', 'name'].includes(req.query.sort) ? req.query.sort : 'price';
   const orders = {
@@ -240,7 +267,7 @@ app.get('/pharmacies', (req, res) => {
 
 app.get('/pharmacy/:id', (req, res) => {
   const pharmacy = db.prepare('SELECT * FROM pharmacies WHERE id = ? AND is_active = 1').get(intParam(req.params.id, 0));
-  if (!pharmacy) return res.status(404).send(String(pub.notFound(ctx(req), 'Аптека не найдена')));
+  if (!pharmacy) return res.status(404).send(String(pub.notFound(ctx(req), req.t('notfound.pharmacy'))));
   const q = str(req.query.q);
   const page = intParam(req.query.page);
   const where = ['o.pharmacy_id = ?'];
@@ -278,13 +305,13 @@ app.post('/login', (req, res) => {
   const fails = (loginFails.get(ip) || []).filter((t) => now - t < 15 * 60 * 1000);
   const login = str(req.body.login);
   if (fails.length >= 10) {
-    return res.status(429).send(String(pub.login(ctx(req), { error: 'Слишком много попыток. Попробуйте через 15 минут.', login })));
+    return res.status(429).send(String(pub.login(ctx(req), { error: req.t('err.too_many_attempts'), login })));
   }
   const user = db.prepare('SELECT * FROM users WHERE login = ?').get(login);
   if (!user || !verifyPassword(req.body.password || '', user.password_hash)) {
     fails.push(now);
     loginFails.set(ip, fails);
-    return res.status(401).send(String(pub.login(ctx(req), { error: 'Неверный логин или пароль', login })));
+    return res.status(401).send(String(pub.login(ctx(req), { error: req.t('err.bad_login'), login })));
   }
   loginFails.delete(ip);
   const token = crypto.randomBytes(32).toString('hex');
@@ -310,7 +337,7 @@ admin.use((req, res, next) => {
 });
 
 function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).send(String(pub.notFound(ctx(req), 'Недостаточно прав')));
+  if (req.user.role !== 'admin') return res.status(403).send(String(pub.notFound(ctx(req), req.t('err.forbidden'))));
   next();
 }
 
@@ -392,9 +419,10 @@ admin.get('/offers/export.csv', (req, res) => {
     const s = String(v ?? '');
     return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const lines = ['Название;Форма;Дозировка;Упаковка;Производитель;МНН;Категория;Рецепт;Цена;Остаток'];
+  const cols = ['name', 'form', 'dosage', 'pack', 'manufacturer', 'inn', 'category', 'rx', 'price', 'quantity'];
+  const lines = [cols.map((c) => req.t(`field.${c}`)).join(';')];
   for (const r of rows) {
-    lines.push([r.name, r.form, r.dosage, r.pack, r.manufacturer, r.inn, r.category, r.rx ? 'да' : '', String(r.price).replace('.', ','), r.quantity ?? '']
+    lines.push([r.name, r.form, r.dosage, r.pack, r.manufacturer, r.inn, r.category, r.rx ? req.t('value.yes') : '', String(r.price).replace('.', ','), r.quantity ?? '']
       .map(cell).join(';'));
   }
   res.set('Content-Type', 'text/csv; charset=utf-8');
@@ -416,17 +444,17 @@ admin.post('/offers/new', (req, res) => {
   const fail = (error) => res.status(400).send(String(adm.offerNew(ctx(req), {
     pharmacies: allPharmacies(), pharmacyId, categories: categoryNames(), values: req.body, error,
   })));
-  if (Number.isNaN(price)) return fail('Укажите цену числом, например 125.50');
+  if (Number.isNaN(price)) return fail(req.t('err.price_number'));
   let drug;
   try {
     const drugId = intParam(req.body.drug_id, 0);
     drug = drugId ? getDrug(drugId) : findOrCreateDrug(req.body).drug;
-    if (!drug) return fail('Препарат не найден в каталоге');
+    if (!drug) return fail(req.t('err.drug_not_in_catalog'));
   } catch (e) {
-    return fail(e.message);
+    return fail(errText(req, e));
   }
   upsertOffer(pharmacyId, drug.id, price, quantity);
-  flash(res, `Сохранено: ${[drug.name, drug.form, drug.dosage, drug.pack].filter(Boolean).join(' ')}`);
+  flash(res, req.t('flash.saved_drug', { title: [drug.name, drug.form, drug.dosage, drug.pack].filter(Boolean).join(' ') }));
   const suffix = req.user.role === 'admin' ? `?pharmacy=${pharmacyId}` : '';
   res.redirect(req.body.more ? `/admin/offers/new${suffix}` : `/admin/offers${suffix}`);
 });
@@ -435,10 +463,10 @@ admin.post('/offers/:id', (req, res) => {
   const offer = ownOffer(req, intParam(req.params.id, 0));
   if (!offer) return res.status(404).send(String(pub.notFound(ctx(req))));
   const price = parsePrice(req.body.price);
-  if (Number.isNaN(price)) flash(res, 'Неверная цена', 'error');
+  if (Number.isNaN(price)) flash(res, req.t('err.bad_price'), 'error');
   else {
     db.prepare("UPDATE offers SET price = ?, quantity = ?, updated_at = datetime('now') WHERE id = ?").run(price, parseQuantity(req.body.quantity), offer.id);
-    flash(res, 'Цена обновлена');
+    flash(res, req.t('flash.price_updated'));
   }
   res.redirect(req.get('Referer') || '/admin/offers');
 });
@@ -446,7 +474,7 @@ admin.post('/offers/:id', (req, res) => {
 admin.post('/offers/:id/delete', (req, res) => {
   const offer = ownOffer(req, intParam(req.params.id, 0));
   if (offer) db.prepare('DELETE FROM offers WHERE id = ?').run(offer.id);
-  flash(res, 'Товар удалён');
+  flash(res, req.t('flash.offer_deleted'));
   res.redirect(req.get('Referer') || '/admin/offers');
 });
 
@@ -517,7 +545,7 @@ admin.post('/import/preview', (req, res) => {
   const pharmacy = db.prepare('SELECT * FROM pharmacies WHERE id = ?').get(pharmacyId);
   const { parsed, summary, toDelete } = analyseImport(pharmacyId, text, stock);
   if (!parsed.rows.length) {
-    flash(res, 'Текст пустой — нечего импортировать', 'error');
+    flash(res, req.t('err.import_empty'), 'error');
     return res.redirect(`/admin/import${req.user.role === 'admin' ? `?pharmacy=${pharmacyId}` : ''}`);
   }
   res.send(String(adm.importPreview(ctx(req), { pharmacy, parsed, text, mode, stock, summary, toDelete })));
@@ -531,7 +559,7 @@ admin.post('/import/apply', (req, res) => {
   const parsed = parseImport(String(req.body.text || ''));
   const good = parsed.rows.filter((r) => !r.error);
   if (!good.length) {
-    flash(res, 'Нет ни одной корректной строки', 'error');
+    flash(res, req.t('err.import_no_rows'), 'error');
     return res.redirect('/admin/import');
   }
   const result = transaction(() => {
@@ -551,7 +579,11 @@ admin.post('/import/apply', (req, res) => {
     }
     return { count: ids.size, created, removed };
   });
-  flash(res, `Импорт завершён: загружено ${result.count} позиций, новых препаратов в каталоге — ${result.created}${mode === 'replace' ? `, удалено — ${result.removed}` : ''}. Остатки ${stock === 'add' ? 'прибавлены к текущим' : 'обновлены из файла'}.`);
+  flash(res, [
+    req.t('flash.import_done', { count: result.count, created: result.created }),
+    mode === 'replace' ? req.t('flash.import_removed', { n: result.removed }) : '',
+    req.t(stock === 'add' ? 'flash.import_stock_add' : 'flash.import_stock_replace'),
+  ].filter(Boolean).join(' '));
   res.redirect(`/admin/offers${req.user.role === 'admin' ? `?pharmacy=${pharmacyId}` : ''}`);
 });
 
@@ -568,10 +600,10 @@ admin.get('/profile', (req, res) => {
 
 admin.post('/profile', (req, res) => {
   if (!req.user.pharmacy_id) return res.redirect('/admin');
-  if (!str(req.body.name)) { flash(res, 'Название обязательно', 'error'); return res.redirect('/admin/profile'); }
+  if (!str(req.body.name)) { flash(res, req.t('err.name_required'), 'error'); return res.redirect('/admin/profile'); }
   db.prepare(`UPDATE pharmacies SET ${PHARMACY_FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`)
     .run(...pharmacyValues(req.body), req.user.pharmacy_id);
-  flash(res, 'Профиль сохранён');
+  flash(res, req.t('flash.profile_saved'));
   res.redirect('/admin/profile');
 });
 
@@ -580,13 +612,13 @@ admin.get('/account', (req, res) => res.send(String(adm.account(ctx(req), {}))))
 admin.post('/account', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   let error = null;
-  if (!verifyPassword(req.body.current || '', user.password_hash)) error = 'Текущий пароль указан неверно';
-  else if (String(req.body.password || '').length < 6) error = 'Новый пароль должен быть не короче 6 символов';
-  else if (req.body.password !== req.body.password2) error = 'Пароли не совпадают';
+  if (!verifyPassword(req.body.current || '', user.password_hash)) error = req.t('err.current_password');
+  else if (String(req.body.password || '').length < 6) error = req.t('err.password_short');
+  else if (req.body.password !== req.body.password2) error = req.t('err.password_mismatch');
   if (error) return res.status(400).send(String(adm.account(ctx(req), { error })));
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(req.body.password), user.id);
   db.prepare('DELETE FROM sessions WHERE user_id = ? AND token <> ?').run(user.id, req.cookies.sid);
-  flash(res, 'Пароль изменён');
+  flash(res, req.t('flash.password_changed'));
   res.redirect('/admin');
 });
 
@@ -613,12 +645,12 @@ admin.get('/drugs/new', adminOnly, (req, res) => {
 admin.post('/drugs/new', adminOnly, (req, res) => {
   try {
     const d = cleanDrug(req.body);
-    if (findDrugByKey(d)) throw new Error('Такой препарат уже есть в каталоге');
+    if (findDrugByKey(d)) throw new AppError('err.drug_exists');
     const { drug } = findOrCreateDrug(req.body);
-    flash(res, 'Препарат добавлен');
+    flash(res, req.t('flash.drug_added'));
     res.redirect(`/admin/drugs/${drug.id}`);
   } catch (e) {
-    res.status(400).send(String(adm.drugEdit(ctx(req), { drug: req.body, categories: categoryNames(), error: e.message })));
+    res.status(400).send(String(adm.drugEdit(ctx(req), { drug: req.body, categories: categoryNames(), error: errText(req, e) })));
   }
 });
 
@@ -634,17 +666,17 @@ admin.post('/drugs/:id', adminOnly, (req, res) => {
   if (!drug) return res.status(404).send(String(pub.notFound(ctx(req))));
   try {
     updateDrug(drug.id, req.body);
-    flash(res, 'Сохранено');
+    flash(res, req.t('flash.saved'));
     res.redirect(`/admin/drugs/${drug.id}`);
   } catch (e) {
     const offersCount = db.prepare('SELECT COUNT(*) AS n FROM offers WHERE drug_id = ?').get(drug.id).n;
-    res.status(400).send(String(adm.drugEdit(ctx(req), { drug: { ...req.body, id: drug.id }, categories: categoryNames(), error: e.message, offersCount })));
+    res.status(400).send(String(adm.drugEdit(ctx(req), { drug: { ...req.body, id: drug.id }, categories: categoryNames(), error: errText(req, e), offersCount })));
   }
 });
 
 admin.post('/drugs/:id/delete', adminOnly, (req, res) => {
   db.prepare('DELETE FROM drugs WHERE id = ?').run(intParam(req.params.id, 0));
-  flash(res, 'Препарат удалён');
+  flash(res, req.t('flash.drug_deleted'));
   res.redirect('/admin/drugs');
 });
 
@@ -652,7 +684,7 @@ admin.post('/drugs/:id/merge', adminOnly, (req, res) => {
   const source = getDrug(intParam(req.params.id, 0));
   const target = getDrug(intParam(req.body.target, 0));
   if (!source || !target || source.id === target.id) {
-    flash(res, 'Укажите ID другой существующей карточки', 'error');
+    flash(res, req.t('err.merge_target'), 'error');
     return res.redirect(source ? `/admin/drugs/${source.id}` : '/admin/drugs');
   }
   transaction(() => {
@@ -663,7 +695,7 @@ admin.post('/drugs/:id/merge', adminOnly, (req, res) => {
       WHERE excluded.updated_at > offers.updated_at`).run(target.id, source.id);
     db.prepare('DELETE FROM drugs WHERE id = ?').run(source.id);
   });
-  flash(res, `Карточка #${source.id} объединена с #${target.id}`);
+  flash(res, req.t('flash.merged', { from: source.id, to: target.id }));
   res.redirect(`/admin/drugs/${target.id}`);
 });
 
@@ -684,10 +716,10 @@ admin.post('/pharmacies', adminOnly, (req, res) => {
   const login = str(req.body.login);
   const password = String(req.body.password || '');
   let error = null;
-  if (!str(req.body.name)) error = 'Укажите название аптеки';
-  else if (!/^[\w.@-]{3,40}$/.test(login)) error = 'Логин: 3–40 символов, латиница, цифры, точка, дефис, подчёркивание';
-  else if (password.length < 6) error = 'Пароль должен быть не короче 6 символов';
-  else if (db.prepare('SELECT 1 FROM users WHERE login = ?').get(login)) error = 'Такой логин уже занят';
+  if (!str(req.body.name)) error = req.t('err.pharmacy_name');
+  else if (!/^[\w.@-]{3,40}$/.test(login)) error = req.t('err.login_format');
+  else if (password.length < 6) error = req.t('err.password_short');
+  else if (db.prepare('SELECT 1 FROM users WHERE login = ?').get(login)) error = req.t('err.login_taken');
   if (error) return res.status(400).send(String(adm.pharmacies(ctx(req), { list: pharmacyList(), error, values: req.body })));
   const id = transaction(() => {
     const pid = db.prepare(`INSERT INTO pharmacies (${PHARMACY_FIELDS.join(', ')}) VALUES (${PHARMACY_FIELDS.map(() => '?').join(', ')})`)
@@ -695,7 +727,7 @@ admin.post('/pharmacies', adminOnly, (req, res) => {
     createUser({ login, password, role: 'pharmacy', pharmacyId: pid });
     return pid;
   });
-  flash(res, `Аптека создана. Логин: ${login}`);
+  flash(res, req.t('flash.pharmacy_created', { login }));
   res.redirect(`/admin/pharmacies/${id}`);
 });
 
@@ -710,38 +742,38 @@ admin.get('/pharmacies/:id', adminOnly, (req, res) => pharmacyEditPage(req, res)
 
 admin.post('/pharmacies/:id', adminOnly, (req, res) => {
   const id = intParam(req.params.id, 0);
-  if (!str(req.body.name)) return pharmacyEditPage(req, res, 'Название обязательно');
+  if (!str(req.body.name)) return pharmacyEditPage(req, res, req.t('err.name_required'));
   db.prepare(`UPDATE pharmacies SET ${PHARMACY_FIELDS.map((f) => `${f} = ?`).join(', ')}, is_active = ? WHERE id = ?`)
     .run(...pharmacyValues(req.body), req.body.is_active ? 1 : 0, id);
-  flash(res, 'Сохранено');
+  flash(res, req.t('flash.saved'));
   res.redirect(`/admin/pharmacies/${id}`);
 });
 
 admin.post('/pharmacies/:id/delete', adminOnly, (req, res) => {
   db.prepare('DELETE FROM pharmacies WHERE id = ?').run(intParam(req.params.id, 0));
-  flash(res, 'Аптека удалена');
+  flash(res, req.t('flash.pharmacy_deleted'));
   res.redirect('/admin/pharmacies');
 });
 
 admin.post('/pharmacies/:id/users', adminOnly, (req, res) => {
   const id = intParam(req.params.id, 0);
   const login = str(req.body.login);
-  if (!/^[\w.@-]{3,40}$/.test(login)) return pharmacyEditPage(req, res, 'Логин: 3–40 символов, латиница, цифры, точка, дефис, подчёркивание');
-  if (String(req.body.password || '').length < 6) return pharmacyEditPage(req, res, 'Пароль должен быть не короче 6 символов');
-  if (db.prepare('SELECT 1 FROM users WHERE login = ?').get(login)) return pharmacyEditPage(req, res, 'Такой логин уже занят');
+  if (!/^[\w.@-]{3,40}$/.test(login)) return pharmacyEditPage(req, res, req.t('err.login_format'));
+  if (String(req.body.password || '').length < 6) return pharmacyEditPage(req, res, req.t('err.password_short'));
+  if (db.prepare('SELECT 1 FROM users WHERE login = ?').get(login)) return pharmacyEditPage(req, res, req.t('err.login_taken'));
   createUser({ login, password: req.body.password, role: 'pharmacy', pharmacyId: id });
-  flash(res, `Пользователь ${login} добавлен`);
+  flash(res, req.t('flash.user_added', { login }));
   res.redirect(`/admin/pharmacies/${id}`);
 });
 
 admin.post('/users/:id/password', adminOnly, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(intParam(req.params.id, 0));
   if (!user) return res.status(404).send(String(pub.notFound(ctx(req))));
-  if (String(req.body.password || '').length < 6) flash(res, 'Пароль должен быть не короче 6 символов', 'error');
+  if (String(req.body.password || '').length < 6) flash(res, req.t('err.password_short'), 'error');
   else {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(req.body.password), user.id);
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
-    flash(res, `Пароль для ${user.login} изменён`);
+    flash(res, req.t('flash.user_password', { login: user.login }));
   }
   res.redirect(user.pharmacy_id ? `/admin/pharmacies/${user.pharmacy_id}` : '/admin');
 });
@@ -749,7 +781,7 @@ admin.post('/users/:id/password', adminOnly, (req, res) => {
 admin.post('/users/:id/delete', adminOnly, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(intParam(req.params.id, 0));
   if (user && user.id !== req.user.id && user.role !== 'admin') db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
-  flash(res, 'Пользователь удалён');
+  flash(res, req.t('flash.user_deleted'));
   res.redirect(user && user.pharmacy_id ? `/admin/pharmacies/${user.pharmacy_id}` : '/admin/pharmacies');
 });
 
@@ -758,11 +790,15 @@ admin.post('/users/:id/delete', adminOnly, (req, res) => {
 admin.get('/settings', adminOnly, (req, res) => res.send(String(adm.settingsPage(ctx(req)))));
 
 admin.post('/settings', adminOnly, (req, res) => {
-  for (const key of ['site_name', 'site_tagline', 'currency']) {
-    const v = str(req.body[key]);
-    if (v || key === 'site_tagline') setSetting(key, v);
+  for (const code of Object.keys(LANGS)) {
+    setSetting(`site_name_${code}`, str(req.body[`site_name_${code}`]));
+    setSetting(`site_tagline_${code}`, str(req.body[`site_tagline_${code}`]));
   }
-  flash(res, 'Настройки сохранены');
+  deleteSetting('site_name');
+  deleteSetting('site_tagline');
+  if (str(req.body.currency)) setSetting('currency', str(req.body.currency));
+  if (LANGS[req.body.default_lang]) setSetting('default_lang', req.body.default_lang);
+  flash(res, req.t('flash.settings_saved'));
   res.redirect('/admin/settings');
 });
 
@@ -772,7 +808,7 @@ app.use((req, res) => res.status(404).send(String(pub.notFound(ctx(req)))));
 
 app.use((err, req, res, _next) => {
   console.error(err);
-  res.status(500).send('Внутренняя ошибка сервера');
+  res.status(500).send(req.t ? req.t('err.server') : 'Internal server error');
 });
 
 // ---------- bootstrap ----------

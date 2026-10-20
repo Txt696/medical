@@ -8,27 +8,26 @@
 //     name, form, dosage, pack, manufacturer, country, category, inn)
 //  * free text, one product per line: "Парацетамол таб. 500мг №20 — 25.50"
 
+// Column names in Russian, Turkmen and English
 const HEADER_ALIASES = {
-  name: ['название', 'наименование', 'препарат', 'товар', 'name', 'product', 'title', 'торговое название'],
-  inn: ['мнн', 'действующее вещество', 'inn', 'substance', 'active ingredient'],
-  form: ['форма', 'форма выпуска', 'лекарственная форма', 'form'],
-  dosage: ['дозировка', 'доза', 'dosage', 'dose', 'strength'],
-  pack: ['упаковка', 'фасовка', 'кол-во в упаковке', 'количество в упаковке', 'pack', 'package'],
-  manufacturer: ['производитель', 'изготовитель', 'manufacturer', 'brand', 'бренд', 'фирма'],
-  country: ['страна', 'country'],
-  category: ['категория', 'группа', 'раздел', 'category', 'group'],
-  rx: ['рецепт', 'по рецепту', 'rx', 'prescription'],
-  description: ['описание', 'description'],
-  price: ['цена', 'стоимость', 'price', 'цена руб', 'цена, руб', 'cost'],
-  quantity: ['количество', 'кол-во', 'остаток', 'наличие', 'qty', 'quantity', 'stock'],
+  name: ['название', 'наименование', 'препарат', 'товар', 'торговое название',
+    'ady', 'dermanyň ady', 'atlandyrylyşy', 'derman', 'haryt', 'söwda ady',
+    'name', 'product', 'title', 'medicine', 'brand name'],
+  inn: ['мнн', 'действующее вещество', 'madda', 'täsir ediji madda', 'inn', 'substance', 'active ingredient'],
+  form: ['форма', 'форма выпуска', 'лекарственная форма', 'görnüşi', 'görnüş', 'form'],
+  dosage: ['дозировка', 'доза', 'dozasy', 'doza', 'dosage', 'dose', 'strength'],
+  pack: ['упаковка', 'фасовка', 'кол-во в упаковке', 'количество в упаковке', 'gaplamasy', 'gaplama', 'pack', 'package'],
+  manufacturer: ['производитель', 'изготовитель', 'бренд', 'фирма', 'öndüriji', 'manufacturer', 'brand'],
+  country: ['страна', 'ýurdy', 'ýurt', 'country'],
+  category: ['категория', 'группа', 'раздел', 'kategoriýa', 'topar', 'category', 'group'],
+  rx: ['рецепт', 'по рецепту', 'resept', 'rx', 'prescription'],
+  description: ['описание', 'düşündiriş', 'description'],
+  price: ['цена', 'стоимость', 'цена руб', 'цена, руб', 'bahasy', 'baha', 'price', 'cost'],
+  quantity: ['количество', 'кол-во', 'остаток', 'наличие', 'galyndy', 'mukdary', 'mukdar', 'sany', 'bardygy',
+    'qty', 'quantity', 'stock'],
 };
 
 const POSITIONAL = ['name', 'form', 'dosage', 'pack', 'manufacturer', 'country', 'category', 'inn'];
-
-const FIELD_LABELS = {
-  name: 'Название', inn: 'МНН', form: 'Форма', dosage: 'Дозировка', pack: 'Упаковка', manufacturer: 'Производитель',
-  country: 'Страна', category: 'Категория', rx: 'Рецепт', description: 'Описание', price: 'Цена', quantity: 'Количество',
-};
 
 const FORM_WORDS = [
   [/^(?:таб(?:л(?:етки|етка)?)?\.?)(?:\s*п\/?о)?$/i, 'таблетки'],
@@ -38,6 +37,8 @@ const FORM_WORDS = [
   [/^(?:супп(?:озитории)?\.?|свечи)$/i, 'суппозитории'],
   [/^(?:пор(?:ошок)?\.?)$/i, 'порошок'],
   [/^(?:сироп|мазь|крем|гель|спрей|капли|аэрозоль|суспензия|гранулы|пастилки|леденцы|пластырь|драже|шампунь|лосьон)$/i, null],
+  [/^(?:tabletka|tabletkalar|kapsula|kapsulalar|sirop|ergin|ampula|ampulalar|melhem|krem|gel|spreý|damja|damjalar|poroşok|suspenziýa|şem|şemler)$/i, null],
+  [/^(?:tablets?|capsules?|syrup|solution|ampoules?|ointment|cream|gel|spray|drops|powder|suspension|suppositor(?:y|ies))$/i, null],
 ];
 
 function headerField(cell) {
@@ -86,7 +87,7 @@ function splitLine(line, delim) {
 function parsePrice(v) {
   if (v === undefined || v === null) return NaN;
   const s = String(v)
-    .replace(/(руб\.?|р\.|₽|tmt|ман\.?|сом|тг|₸|грн|\$|€|usd|eur)/gi, '')
+    .replace(/(руб\.?|р\.|₽|tmt|manat|ман\.?|сом|тг|₸|грн|\$|€|usd|eur)/gi, '')
     .replace(/[\s ]/g, '')
     .replace(',', '.');
   if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
@@ -96,7 +97,7 @@ function parsePrice(v) {
 function parseQuantity(v) {
   const s = String(v ?? '').trim().toLowerCase();
   if (!s) return null;
-  if (['нет', 'no', 'отсутствует', '-'].includes(s)) return 0;
+  if (['нет', 'no', 'отсутствует', 'ýok', 'none', '-'].includes(s)) return 0;
   const m = s.match(/^(\d+)/);
   return m ? parseInt(m[1], 10) : null;
 }
@@ -106,7 +107,7 @@ function splitName(fullName) {
   let name = ` ${fullName} `;
   const res = { form: '', dosage: '', pack: '' };
 
-  const pack = name.match(/\s(?:№|N|No\.?)\s*(\d+)\s|\s(\d+)\s*шт\.?\s/i);
+  const pack = name.match(/\s(?:№|N|No\.?)\s*(\d+)\s|\s(\d+)\s*(?:шт|sany|pcs)\.?\s/i);
   if (pack) {
     res.pack = `№${pack[1] || pack[2]}`;
     name = name.replace(pack[0], ' ');
@@ -134,7 +135,7 @@ function splitName(fullName) {
   return res;
 }
 
-const FREE_TEXT = /^(.*?\S)[\s\-–—:=]+(\d+(?:[.,]\d{1,2})?)\s*(?:руб\.?|р\.?|₽|tmt|ман\.?|сом|тг|₸|грн)?\s*(?:[,;/]?\s*(?:остаток|наличие|кол-во)?:?\s*(\d+)\s*(?:шт\.?|уп\.?))?\s*$/i;
+const FREE_TEXT = /^(.*?\S)[\s\-–—:=]+(\d+(?:[.,]\d{1,2})?)\s*(?:руб\.?|р\.?|₽|tmt|manat|ман\.?|сом|тг|₸|грн)?\s*(?:[,;/]?\s*(?:остаток|наличие|кол-во|galyndy|stock)?:?\s*(\d+)\s*(?:шт\.?|уп\.?|sany|gap|pcs))?\s*$/i;
 
 function parseImport(text) {
   const lines = String(text || '')
@@ -201,11 +202,11 @@ function parseImport(text) {
       if (s.name) Object.assign(row.drug, s);
     }
 
-    if (!row.drug.name) row.error = 'Нет названия';
-    else if (Number.isNaN(row.price)) row.error = 'Не удалось распознать цену';
+    if (!row.drug.name) row.error = 'import.err.no_name';
+    else if (Number.isNaN(row.price)) row.error = 'import.err.price';
     result.rows.push(row);
   }
   return result;
 }
 
-module.exports = { parseImport, splitName, parsePrice, parseQuantity, FIELD_LABELS, HEADER_ALIASES };
+module.exports = { parseImport, splitName, parsePrice, parseQuantity, HEADER_ALIASES };

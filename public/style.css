@@ -270,6 +270,8 @@ label.check input { width: auto; margin: 0; }
   .topbar-inner { flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; gap: 10px; }
   .topsearch { order: 3; flex-basis: 100%; max-width: none; }
   .topnav { margin-left: auto; gap: 12px; }
+  .lang-switch { order: 1; }
+  .topnav { order: 2; }
   .with-sidebar, .with-sidebar.sidebar-right { grid-template-columns: 1fr; }
   .filters { position: static; }
   .drug-head { grid-template-columns: 1fr; }
@@ -298,5 +300,15 @@ label.check input { width: auto; margin: 0; }
   .cta-pharm { flex-direction: column; align-items: flex-start; }
   .pharm-contacts { align-items: flex-start; }
   .logo span:last-child { font-size: 17px; }
+  .lang-switch { margin-left: auto; }
+  .topnav { width: 100%; margin-left: 0; font-size: 15px; }
+  .topnav .btn { margin-left: auto; }
   .table { font-size: 14px; }
 }
+
+/* ---------- language switch ---------- */
+.lang-switch { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.lang-switch a, .lang-switch span { font-size: 13px; font-weight: 600; padding: 3px 7px; border-radius: 6px; color: var(--muted); }
+.lang-switch a:hover { color: var(--text); text-decoration: none; background: #fff; }
+.lang-switch .active { background: var(--green); color: #fff; }
+.settings-langs fieldset { margin-bottom: 12px; }

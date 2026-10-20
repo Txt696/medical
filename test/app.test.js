@@ -168,3 +168,31 @@ test('import matches a card even if the file has no form / pack, but only when u
   assert.equal(offer.price, 70);
   assert.equal(offer.quantity, 3);
 });
+
+test('language switch', async () => {
+  const c = client();
+  let r = await c.get('/');
+  assert.match(r.text, /<html lang="ru">/);
+  r = await c.get('/lang/tk');
+  assert.equal(r.status, 302);
+  r = await c.get('/');
+  assert.match(r.text, /<html lang="tk">/);
+  assert.match(r.text, /Dermanhanalar/);
+  await c.get('/lang/en');
+  r = await c.get('/pharmacies');
+  assert.match(r.text, /Pharmacies/);
+  // flash messages and errors follow the language
+  r = await c.login('ph1', 'wrong');
+  assert.match(r.text, /Wrong login or password/);
+  await c.get('/lang/xx');
+  assert.match((await c.get('/')).text, /<html lang="en">/);
+});
+
+test('import understands Turkmen headers', async () => {
+  const c = client();
+  await c.login('ph2', 'secret1');
+  const text = 'Ady;Dozasy;Bahasy;Galyndy\nTürkmen dermany;5 mg;12,5;7';
+  await c.post('/admin/import/apply', { text, mode: 'upsert', stock: 'replace' });
+  const row = db.prepare("SELECT o.price, o.quantity, d.dosage FROM offers o JOIN drugs d ON d.id = o.drug_id WHERE d.name = 'Türkmen dermany'").get();
+  assert.deepEqual({ ...row }, { price: 12.5, quantity: 7, dosage: '5 mg' });
+});

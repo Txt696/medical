@@ -1,216 +1,215 @@
 'use strict';
 const { html } = require('../html');
-const { layout, money, plural, dateRu, drugTitle, qs, pagination } = require('./layout');
-const { FIELD_LABELS } = require('../importer');
+const { layout, money, dateFmt, drugTitle, qs, pagination } = require('./layout');
+const { LANGS } = require('../i18n');
 
 const page = (ctx, title, body) => layout(ctx, { title, body, admin: true });
 const csrf = (ctx) => html`<input type="hidden" name="_csrf" value="${ctx.csrf}">`;
+const errorBlock = (error) => (error ? html`<div class="flash flash-error">${error}</div>` : '');
 
 function pharmacySelect(ctx, pharmacies, current, { name = 'pharmacy', autosubmit = true } = {}) {
   if (ctx.user.role !== 'admin') return '';
-  return html`<label class="pharm-select">Аптека
+  return html`<label class="pharm-select">${ctx.t('field.pharmacy')}
     <select name="${name}" ${autosubmit ? 'data-autosubmit' : ''} required>
       ${pharmacies.map((p) => html`<option value="${p.id}" ${p.id === current ? 'selected' : ''}>${p.name}${p.city ? ` (${p.city})` : ''}</option>`)}
     </select></label>`;
 }
 
 function noPharmacies(ctx) {
-  return page(ctx, 'Нет аптек', html`<div class="empty">
-    <p>Сначала создайте хотя бы одну аптеку.</p><a class="btn" href="/admin/pharmacies">Добавить аптеку</a></div>`);
+  const { t } = ctx;
+  return page(ctx, t('admin.no_pharmacies_title'), html`<div class="empty">
+    <p>${t('admin.no_pharmacies')}</p><a class="btn" href="/admin/pharmacies">${t('admin.add_pharmacy')}</a></div>`);
 }
 
 function dashboard(ctx, { stats, pharmacy, pharmacies, recent }) {
-  const cur = ctx.settings.currency;
+  const { t } = ctx;
   const isAdmin = ctx.user.role === 'admin';
+  const stat = (n, label, cls = '') => html`<div class="stat"><div class="stat-num ${cls}">${n}</div><div class="muted">${label}</div></div>`;
   const body = html`
-  <div class="page-head"><h1>${isAdmin ? 'Панель администратора' : pharmacy.name}</h1>
-    ${pharmacy ? html`<a href="/pharmacy/${pharmacy.id}" target="_blank">Страница аптеки на сайте →</a>` : ''}</div>
+  <div class="page-head"><h1>${isAdmin ? t('dash.admin_title') : pharmacy.name}</h1>
+    ${pharmacy ? html`<a href="/pharmacy/${pharmacy.id}" target="_blank">${t('dash.public_page')} →</a>` : ''}</div>
   <div class="stat-row">
-    ${isAdmin ? html`
-      <div class="stat"><div class="stat-num">${stats.pharmacies}</div><div class="muted">аптек</div></div>
-      <div class="stat"><div class="stat-num">${stats.drugs}</div><div class="muted">препаратов в каталоге</div></div>
-      <div class="stat"><div class="stat-num">${stats.offers}</div><div class="muted">предложений</div></div>`
-    : html`
-      <div class="stat"><div class="stat-num">${stats.offers}</div><div class="muted">товаров на сайте</div></div>
-      <div class="stat"><div class="stat-num">${stats.out}</div><div class="muted">нет в наличии</div></div>
-      <div class="stat"><div class="stat-num small-num">${stats.updated ? dateRu(stats.updated) : '—'}</div><div class="muted">последнее обновление</div></div>`}
+    ${isAdmin
+      ? [stat(stats.pharmacies, t('dash.pharmacies')), stat(stats.drugs, t('dash.drugs')), stat(stats.offers, t('dash.offers'))]
+      : [stat(stats.offers, t('dash.products_on_site')), stat(stats.out, t('stock.out')), stat(stats.updated ? dateFmt(ctx, stats.updated) : '—', t('dash.last_update'), 'small-num')]}
   </div>
 
   <div class="action-cards">
-    <a class="action-card" href="/admin/offers/new"><strong>Добавить товар вручную</strong><span class="muted">Выберите препарат из каталога или создайте новый и укажите цену.</span></a>
-    <a class="action-card" href="/admin/import"><strong>Импорт прайс-листа</strong><span class="muted">Вставьте текст или загрузите CSV/TXT — цены обновятся автоматически.</span></a>
-    <a class="action-card" href="/admin/offers"><strong>Управление товарами</strong><span class="muted">Быстро меняйте цены и остатки, удаляйте позиции.</span></a>
+    <a class="action-card" href="/admin/offers/new"><strong>${t('dash.card_add')}</strong><span class="muted">${t('dash.card_add_text')}</span></a>
+    <a class="action-card" href="/admin/import"><strong>${t('dash.card_import')}</strong><span class="muted">${t('dash.card_import_text')}</span></a>
+    <a class="action-card" href="/admin/offers"><strong>${t('dash.card_offers')}</strong><span class="muted">${t('dash.card_offers_text')}</span></a>
   </div>
 
-  ${isAdmin && pharmacies.length ? html`<h2>Аптеки</h2>
-    <table class="table"><thead><tr><th>Аптека</th><th>Город</th><th class="num">Товаров</th><th>Обновлено</th><th></th></tr></thead>
+  ${isAdmin && pharmacies.length ? html`<h2>${t('nav.pharmacies')}</h2>
+    <table class="table"><thead><tr><th>${t('field.pharmacy')}</th><th>${t('field.city')}</th><th class="num">${t('dash.products')}</th><th>${t('dash.updated')}</th><th></th></tr></thead>
     <tbody>${pharmacies.map((p) => html`<tr class="${p.is_active ? '' : 'row-out'}">
-      <td><a href="/admin/pharmacies/${p.id}">${p.name}</a>${p.is_active ? '' : html` <span class="badge">скрыта</span>`}</td><td>${p.city}</td>
-      <td class="num">${p.offers_count}</td><td class="small">${dateRu(p.last_update)}</td>
-      <td><a href="/admin/offers?pharmacy=${p.id}">товары</a></td></tr>`)}</tbody></table>` : ''}
+      <td><a href="/admin/pharmacies/${p.id}">${p.name}</a>${p.is_active ? '' : html` <span class="badge">${t('admin.hidden')}</span>`}</td><td>${p.city}</td>
+      <td class="num">${p.offers_count}</td><td class="small">${dateFmt(ctx, p.last_update)}</td>
+      <td><a href="/admin/offers?pharmacy=${p.id}">${t('admin.products_link')}</a></td></tr>`)}</tbody></table>` : ''}
 
-  ${recent.length ? html`<h2>Недавно изменённые</h2>
-    <table class="table"><thead><tr><th>Препарат</th>${isAdmin ? html`<th>Аптека</th>` : ''}<th class="num">Цена</th><th>Обновлено</th></tr></thead>
+  ${recent.length ? html`<h2>${t('dash.recent')}</h2>
+    <table class="table"><thead><tr><th>${t('field.drug')}</th>${isAdmin ? html`<th>${t('field.pharmacy')}</th>` : ''}<th class="num">${t('field.price')}</th><th>${t('dash.updated')}</th></tr></thead>
     <tbody>${recent.map((o) => html`<tr><td><a href="/drug/${o.drug_id}">${drugTitle(o)}</a></td>${isAdmin ? html`<td>${o.pharmacy_name}</td>` : ''}
-      <td class="num">${money(o.price, cur)}</td><td class="small">${dateRu(o.updated_at)}</td></tr>`)}</tbody></table>` : ''}`;
-  return page(ctx, 'Кабинет', body);
+      <td class="num">${money(ctx, o.price)}</td><td class="small">${dateFmt(ctx, o.updated_at)}</td></tr>`)}</tbody></table>` : ''}`;
+  return page(ctx, t('nav.cabinet'), body);
 }
 
 function offers(ctx, { pharmacies, pharmacyId, list, q, filter, total, page: p, pages }) {
-  const cur = ctx.settings.currency;
+  const { t } = ctx;
+  const pharmParam = ctx.user.role === 'admin' ? pharmacyId : '';
   const body = html`
-  <div class="page-head"><h1>Товары аптеки</h1>
+  <div class="page-head"><h1>${t('offers.title')}</h1>
     <div class="head-actions">
-      <a class="btn btn-small btn-ghost" href="/admin/offers/export.csv${qs({ pharmacy: ctx.user.role === 'admin' ? pharmacyId : '' })}">Скачать CSV</a>
-      <a class="btn btn-small" href="/admin/offers/new${qs({ pharmacy: ctx.user.role === 'admin' ? pharmacyId : '' })}">+ Добавить</a>
+      <a class="btn btn-small btn-ghost" href="/admin/offers/export.csv${qs({ pharmacy: pharmParam })}">${t('offers.export')}</a>
+      <a class="btn btn-small" href="/admin/offers/new${qs({ pharmacy: pharmParam })}">${t('admin.nav.add')}</a>
     </div>
   </div>
   <form method="get" class="inline-filters">
     ${pharmacySelect(ctx, pharmacies, pharmacyId)}
-    <input type="search" name="q" value="${q}" placeholder="Поиск по названию">
+    <input type="search" name="q" value="${q}" placeholder="${t('offers.search')}">
     <select name="filter" data-autosubmit>
-      <option value="">Все</option>
-      <option value="out" ${filter === 'out' ? 'selected' : ''}>Нет в наличии</option>
-      <option value="old" ${filter === 'old' ? 'selected' : ''}>Не обновлялись 30 дней</option>
+      <option value="">${t('filter.all')}</option>
+      <option value="out" ${filter === 'out' ? 'selected' : ''}>${t('stock.out')}</option>
+      <option value="old" ${filter === 'old' ? 'selected' : ''}>${t('offers.filter_old')}</option>
     </select>
-    <button class="btn btn-small">Найти</button>
+    <button class="btn btn-small">${t('search.button')}</button>
   </form>
-  <p class="muted small">Всего: ${total}. Измените цену или остаток и нажмите «Сохранить» в строке. Пустой остаток = «в наличии» без указания количества, 0 = нет в наличии.</p>
+  <p class="muted small">${t('offers.total', { n: total })} ${t('offers.hint')}</p>
   ${list.length ? html`<div class="table-wrap"><table class="table table-edit">
-    <thead><tr><th>Препарат</th><th>Цена, ${cur}</th><th>Остаток</th><th>Обновлено</th><th></th></tr></thead>
+    <thead><tr><th>${t('field.drug')}</th><th>${t('field.price')}, ${ctx.settings.currency}</th><th>${t('field.quantity')}</th><th>${t('dash.updated')}</th><th></th></tr></thead>
     <tbody>${list.map((o) => html`<tr>
       <td><a href="/drug/${o.drug_id}" target="_blank">${drugTitle(o)}</a><div class="muted small">${o.manufacturer}</div></td>
       <td><input form="o${o.id}" class="input-num" name="price" value="${o.price}" inputmode="decimal" required></td>
-      <td><input form="o${o.id}" class="input-num" name="quantity" value="${o.quantity ?? ''}" inputmode="numeric" placeholder="есть"></td>
-      <td class="small muted">${dateRu(o.updated_at)}</td>
+      <td><input form="o${o.id}" class="input-num" name="quantity" value="${o.quantity ?? ''}" inputmode="numeric" placeholder="${t('stock.yes')}"></td>
+      <td class="small muted">${dateFmt(ctx, o.updated_at)}</td>
       <td class="row-actions">
-        <form id="o${o.id}" method="post" action="/admin/offers/${o.id}">${csrf(ctx)}<button class="btn btn-small">Сохранить</button></form>
-        <form method="post" action="/admin/offers/${o.id}/delete" data-confirm="Удалить товар из аптеки?">${csrf(ctx)}<button class="btn btn-small btn-danger" title="Удалить">✕</button></form>
-      </td></tr>`)}</tbody></table></div>` : html`<div class="empty">Товаров пока нет. <a href="/admin/offers/new">Добавьте вручную</a> или <a href="/admin/import">импортируйте прайс</a>.</div>`}
-  ${pagination(p, pages, { q, filter, pharmacy: ctx.user.role === 'admin' ? pharmacyId : '' })}`;
-  return page(ctx, 'Товары', body);
+        <form id="o${o.id}" method="post" action="/admin/offers/${o.id}">${csrf(ctx)}<button class="btn btn-small">${t('action.save')}</button></form>
+        <form method="post" action="/admin/offers/${o.id}/delete" data-confirm="${t('offers.confirm_delete')}">${csrf(ctx)}<button class="btn btn-small btn-danger" title="${t('action.delete')}">✕</button></form>
+      </td></tr>`)}</tbody></table></div>`
+    : html`<div class="empty">${t('offers.empty_1')} <a href="/admin/offers/new">${t('offers.empty_add')}</a> ${t('offers.empty_or')} <a href="/admin/import">${t('offers.empty_import')}</a>.</div>`}
+  ${pagination(p, pages, { q, filter, pharmacy: pharmParam })}`;
+  return page(ctx, t('offers.title'), body);
 }
 
-function drugFields(d = {}, { readonly = false } = {}) {
-  const ro = readonly ? 'readonly' : '';
+const FORMS = {
+  ru: ['таблетки', 'капсулы', 'сироп', 'раствор', 'ампулы', 'мазь', 'крем', 'гель', 'спрей', 'капли', 'суппозитории', 'порошок', 'суспензия'],
+  tk: ['tabletka', 'kapsula', 'sirop', 'ergin', 'ampula', 'melhem', 'krem', 'gel', 'spreý', 'damja', 'şem', 'poroşok', 'suspenziýa'],
+  en: ['tablets', 'capsules', 'syrup', 'solution', 'ampoules', 'ointment', 'cream', 'gel', 'spray', 'drops', 'suppositories', 'powder', 'suspension'],
+};
+
+function drugFields(ctx, d = {}) {
+  const { t } = ctx;
   return html`
     <div class="grid-2">
-      <label class="span-2">Торговое название *<input name="name" value="${d.name || ''}" required ${ro} data-drug-name autocomplete="off"><div class="suggest" hidden></div></label>
-      <label>Лекарственная форма<input name="form" value="${d.form || ''}" list="forms" placeholder="таблетки" ${ro}></label>
-      <label>Дозировка<input name="dosage" value="${d.dosage || ''}" placeholder="500 мг" ${ro}></label>
-      <label>Упаковка<input name="pack" value="${d.pack || ''}" placeholder="№20" ${ro}></label>
-      <label>Действующее вещество (МНН)<input name="inn" value="${d.inn || ''}" placeholder="парацетамол" ${ro}></label>
-      <label>Производитель<input name="manufacturer" value="${d.manufacturer || ''}" ${ro}></label>
-      <label>Страна<input name="country" value="${d.country || ''}" ${ro}></label>
-      <label>Категория<input name="category" value="${d.category || ''}" list="categories" ${ro}></label>
-      <label class="check"><input type="checkbox" name="rx" value="1" ${d.rx ? 'checked' : ''} ${readonly ? 'disabled' : ''}> Отпускается по рецепту</label>
+      <label class="span-2">${t('field.trade_name')} *<input name="name" value="${d.name || ''}" required data-drug-name autocomplete="off"><div class="suggest" hidden></div></label>
+      <label>${t('field.form')}<input name="form" value="${d.form || ''}" list="forms" placeholder="${FORMS[ctx.lang][0]}"></label>
+      <label>${t('field.dosage')}<input name="dosage" value="${d.dosage || ''}" placeholder="500 mg"></label>
+      <label>${t('field.pack')}<input name="pack" value="${d.pack || ''}" placeholder="№20"></label>
+      <label>${t('drug.inn')}<input name="inn" value="${d.inn || ''}"></label>
+      <label>${t('field.manufacturer')}<input name="manufacturer" value="${d.manufacturer || ''}"></label>
+      <label>${t('field.country')}<input name="country" value="${d.country || ''}"></label>
+      <label>${t('field.category')}<input name="category" value="${d.category || ''}" list="categories"></label>
+      <label class="check"><input type="checkbox" name="rx" value="1" ${d.rx ? 'checked' : ''}> ${t('drug.rx_title')}</label>
     </div>
-    <datalist id="forms">${['таблетки', 'капсулы', 'сироп', 'раствор', 'ампулы', 'мазь', 'крем', 'гель', 'спрей', 'капли', 'суппозитории', 'порошок', 'суспензия'].map((f) => html`<option>${f}</option>`)}</datalist>`;
+    <datalist id="forms">${FORMS[ctx.lang].map((f) => html`<option>${f}</option>`)}</datalist>`;
 }
 
 function offerNew(ctx, { pharmacies, pharmacyId, categories, values = {}, error }) {
+  const { t } = ctx;
   const body = html`
-  <div class="page-head"><h1>Добавить товар</h1></div>
-  ${error ? html`<div class="flash flash-error">${error}</div>` : ''}
+  <div class="page-head"><h1>${t('offer_new.title')}</h1></div>
+  ${errorBlock(error)}
   <form method="post" action="/admin/offers/new" class="form card" data-offer-form>
     ${csrf(ctx)}
     ${pharmacySelect(ctx, pharmacies, pharmacyId, { autosubmit: false })}
     <input type="hidden" name="drug_id" value="${values.drug_id || ''}">
-    <h3>Препарат</h3>
-    <p class="muted small">Начните вводить название — если препарат уже есть в каталоге, выберите его из списка. Иначе заполните поля, и будет создана новая карточка.</p>
-    <div class="picked" ${values.drug_id ? '' : 'hidden'}>Выбран препарат из каталога. <button type="button" class="linklike" data-unpick>Изменить</button></div>
-    ${drugFields(values)}
+    <h3>${t('field.drug')}</h3>
+    <p class="muted small">${t('offer_new.hint')}</p>
+    <div class="picked" ${values.drug_id ? '' : 'hidden'}>${t('offer_new.picked')} <button type="button" class="linklike" data-unpick>${t('offer_new.change')}</button></div>
+    ${drugFields(ctx, values)}
     <datalist id="categories">${categories.map((c) => html`<option>${c}</option>`)}</datalist>
-    <h3>Цена и наличие</h3>
+    <h3>${t('offer_new.price_stock')}</h3>
     <div class="grid-2">
-      <label>Цена, ${ctx.settings.currency} *<input name="price" value="${values.price || ''}" inputmode="decimal" required></label>
-      <label>Остаток, уп.<input name="quantity" value="${values.quantity ?? ''}" inputmode="numeric" placeholder="не указывать"></label>
+      <label>${t('field.price')}, ${ctx.settings.currency} *<input name="price" value="${values.price || ''}" inputmode="decimal" required></label>
+      <label>${t('offer_new.quantity')}<input name="quantity" value="${values.quantity ?? ''}" inputmode="numeric" placeholder="${t('offer_new.quantity_placeholder')}"></label>
     </div>
-    <div class="form-actions"><button class="btn">Сохранить</button><button class="btn btn-ghost" name="more" value="1">Сохранить и добавить ещё</button></div>
+    <div class="form-actions"><button class="btn">${t('action.save')}</button><button class="btn btn-ghost" name="more" value="1">${t('offer_new.save_more')}</button></div>
   </form>`;
-  return page(ctx, 'Добавить товар', body);
+  return page(ctx, t('offer_new.title'), body);
 }
 
-const SAMPLE_TABLE = `Название;Форма;Дозировка;Упаковка;Производитель;Цена;Остаток
-Парацетамол;таблетки;500 мг;№20;Фармстандарт;25,50;40
-Ибупрофен;таблетки;200 мг;№50;Синтез;89;12`;
-
-const SAMPLE_FREE = `Парацетамол таб. 500мг №20 — 25.50
-Нурофен таб. п/о 200мг №10 145 руб
-Но-шпа таб. 40мг №24 210`;
-
 function importForm(ctx, { pharmacies, pharmacyId, text = '', mode = 'upsert', stock = 'replace' }) {
+  const { t } = ctx;
+  const sampleTable = t('import.sample_table');
   const body = html`
-  <div class="page-head"><h1>Импорт прайс-листа</h1></div>
+  <div class="page-head"><h1>${t('import.title')}</h1></div>
   <div class="with-sidebar sidebar-right">
     <form method="post" action="/admin/import/preview" class="form card">
       ${csrf(ctx)}
       ${pharmacySelect(ctx, pharmacies, pharmacyId, { autosubmit: false })}
-      <label>Текст прайс-листа
-        <textarea name="text" rows="16" class="mono" placeholder="${SAMPLE_TABLE}" required data-import-text>${text}</textarea>
+      <label>${t('import.text')}
+        <textarea name="text" rows="16" class="mono" placeholder="${sampleTable}" required data-import-text>${text}</textarea>
       </label>
-      <label class="file-pick">или загрузите файл (.csv, .txt, .tsv) <input type="file" accept=".csv,.txt,.tsv,text/plain,text/csv" data-import-file></label>
+      <label class="file-pick">${t('import.file')} <input type="file" accept=".csv,.txt,.tsv,text/plain,text/csv" data-import-file></label>
       <fieldset>
-        <legend>Режим</legend>
-        <label class="check"><input type="radio" name="mode" value="upsert" ${mode !== 'replace' ? 'checked' : ''}> Добавить новые и обновить цены существующих</label>
-        <label class="check"><input type="radio" name="mode" value="replace" ${mode === 'replace' ? 'checked' : ''}> Полная замена: товары, которых нет в списке, будут удалены</label>
+        <legend>${t('import.mode')}</legend>
+        <label class="check"><input type="radio" name="mode" value="upsert" ${mode !== 'replace' ? 'checked' : ''}> ${t('import.mode_upsert')}</label>
+        <label class="check"><input type="radio" name="mode" value="replace" ${mode === 'replace' ? 'checked' : ''}> ${t('import.mode_replace')}</label>
       </fieldset>
       <fieldset>
-        <legend>Остатки</legend>
-        <label class="check"><input type="radio" name="stock" value="replace" ${stock !== 'add' ? 'checked' : ''}> Обновить остатки из файла (заменить текущие)</label>
-        <label class="check"><input type="radio" name="stock" value="add" ${stock === 'add' ? 'checked' : ''}> Прибавить к остаткам на складе (приход товара)</label>
-        <p class="muted small">Если у строки остаток не указан, текущий остаток не меняется. Цена в любом случае берётся из файла.</p>
+        <legend>${t('import.stock')}</legend>
+        <label class="check"><input type="radio" name="stock" value="replace" ${stock !== 'add' ? 'checked' : ''}> ${t('import.stock_replace')}</label>
+        <label class="check"><input type="radio" name="stock" value="add" ${stock === 'add' ? 'checked' : ''}> ${t('import.stock_add')}</label>
+        <p class="muted small">${t('import.stock_hint')}</p>
       </fieldset>
-      <div class="form-actions"><button class="btn">Проверить →</button><span class="muted small">На следующем шаге вы увидите, как распознан каждый товар.</span></div>
+      <div class="form-actions"><button class="btn">${t('import.check')} →</button><span class="muted small">${t('import.check_hint')}</span></div>
     </form>
     <aside class="help card">
-      <h3>Поддерживаемые форматы</h3>
-      <p><strong>1. Таблица с заголовком</strong> — из Excel/Google Таблиц (просто скопируйте и вставьте) или CSV. Разделитель: табуляция, «;», «,» или «|». Порядок колонок любой.</p>
-      <pre>${SAMPLE_TABLE}</pre>
-      <p class="small muted">Распознаются колонки: ${Object.values(FIELD_LABELS).join(', ')}. Также «Наименование», «Остаток», «МНН», «Стоимость» и англ. name, price, qty…</p>
-      <p><strong>2. Таблица без заголовка</strong> — последние две колонки: цена и остаток, первые: название, форма, дозировка, упаковка, производитель.</p>
-      <p><strong>3. Свободный текст</strong> — одна позиция в строке, цена в конце. Форма, дозировка и №упаковки выделяются из названия автоматически.</p>
-      <pre>${SAMPLE_FREE}</pre>
-      <p class="small muted">Строки, начинающиеся с «#», пропускаются. Если препарат с таким же названием, формой, дозировкой и упаковкой уже есть в каталоге — цена привяжется к нему. Если форма, дозировка или упаковка не указаны, ищется единственный препарат с таким названием и совпадающими остальными полями. Иначе будет создана новая карточка.</p>
+      <h3>${t('import.formats')}</h3>
+      <p><strong>1. ${t('import.f1')}</strong> — ${t('import.f1_text')}</p>
+      <pre>${sampleTable}</pre>
+      <p class="small muted">${t('import.columns_hint')}</p>
+      <p><strong>2. ${t('import.f2')}</strong> — ${t('import.f2_text')}</p>
+      <p><strong>3. ${t('import.f3')}</strong> — ${t('import.f3_text')}</p>
+      <pre>${t('import.sample_free')}</pre>
+      <p class="small muted">${t('import.matching_hint')}</p>
     </aside>
   </div>`;
-  return page(ctx, 'Импорт', body);
-}
-
-const qtyText = (q) => (q === null || q === undefined ? 'есть' : q);
-
-function stockChange(r) {
-  if (r.oldQty === undefined) return qtyText(r.newQty);
-  if (r.oldQty === r.newQty) return html`<span class="muted">${qtyText(r.newQty)}</span>`;
-  return html`<span class="muted">${qtyText(r.oldQty)} →</span> <strong>${qtyText(r.newQty)}</strong>`;
+  return page(ctx, t('admin.nav.import'), body);
 }
 
 function importPreview(ctx, { pharmacy, parsed, text, mode, stock, summary, toDelete }) {
-  const cur = ctx.settings.currency;
-  const modeLabel = { header: 'таблица с заголовком', positional: 'таблица без заголовка', free: 'свободный текст' }[parsed.mode];
-  const delimLabel = { '\t': 'табуляция', ';': '«;»', ',': '«,»', '|': '«|»' }[parsed.delimiter] || '—';
+  const { t } = ctx;
+  const qtyText = (q) => (q === null || q === undefined ? t('stock.yes') : q);
+  const stockChange = (r) => {
+    if (r.oldQty === undefined) return qtyText(r.newQty);
+    if (r.oldQty === r.newQty) return html`<span class="muted">${qtyText(r.newQty)}</span>`;
+    return html`<span class="muted">${qtyText(r.oldQty)} →</span> <strong>${qtyText(r.newQty)}</strong>`;
+  };
+  const delimLabel = { '\t': t('import.delim_tab'), ';': '«;»', ',': '«,»', '|': '«|»' }[parsed.delimiter];
+  const stat = (n, label, bad) => html`<div class="stat ${bad ? 'stat-bad' : ''}"><div class="stat-num">${n}</div><div class="muted">${label}</div></div>`;
   const body = html`
-  <div class="page-head"><h1>Проверка импорта</h1><div class="muted">${pharmacy.name}</div></div>
+  <div class="page-head"><h1>${t('preview.title')}</h1><div class="muted">${pharmacy.name}</div></div>
   <div class="stat-row">
-    <div class="stat"><div class="stat-num">${summary.ok}</div><div class="muted">будет загружено</div></div>
-    <div class="stat"><div class="stat-num">${summary.newDrugs}</div><div class="muted">новых карточек препаратов</div></div>
-    <div class="stat"><div class="stat-num">${summary.updates}</div><div class="muted">обновление цен</div></div>
-    <div class="stat ${summary.errors ? 'stat-bad' : ''}"><div class="stat-num">${summary.errors}</div><div class="muted">строк с ошибкой (пропустятся)</div></div>
-    ${mode === 'replace' ? html`<div class="stat ${toDelete ? 'stat-bad' : ''}"><div class="stat-num">${toDelete}</div><div class="muted">будет удалено</div></div>` : ''}
+    ${stat(summary.ok, t('preview.ok'))}
+    ${stat(summary.newDrugs, t('preview.new_drugs'))}
+    ${stat(summary.updates, t('preview.updates'))}
+    ${stat(summary.errors, t('preview.errors'), summary.errors)}
+    ${mode === 'replace' ? stat(toDelete, t('preview.to_delete'), toDelete) : ''}
   </div>
-  <p class="small"><strong>Остатки:</strong> ${stock === 'add' ? 'количество из файла прибавляется к текущему остатку' : 'остаток заменяется количеством из файла'}.</p>
-  <p class="muted small">Формат: ${modeLabel}${parsed.delimiter ? `; разделитель: ${delimLabel}` : ''}${parsed.columns ? html`; колонки: ${parsed.columns.map((c) => (c ? FIELD_LABELS[c] : '(пропуск)')).join(', ')}` : ''}.</p>
+  <p class="small"><strong>${t('import.stock')}:</strong> ${stock === 'add' ? t('preview.stock_add') : t('preview.stock_replace')}.</p>
+  <p class="muted small">${t('preview.format')}: ${t(`preview.mode_${parsed.mode}`)}${delimLabel ? `; ${t('preview.delimiter')}: ${delimLabel}` : ''}${parsed.columns ? `; ${t('preview.columns')}: ${parsed.columns.map((c) => (c ? t(`field.${c}`) : t('preview.skip'))).join(', ')}` : ''}.</p>
   <div class="table-wrap"><table class="table">
-    <thead><tr><th>#</th><th>Название</th><th>Форма</th><th>Дозировка</th><th>Упак.</th><th>Производитель</th><th class="num">Цена</th><th class="num">В файле</th><th class="num">Станет</th><th>Статус</th></tr></thead>
+    <thead><tr><th>#</th><th>${t('field.name')}</th><th>${t('field.form')}</th><th>${t('field.dosage')}</th><th>${t('field.pack')}</th><th>${t('field.manufacturer')}</th><th class="num">${t('field.price')}</th><th class="num">${t('preview.in_file')}</th><th class="num">${t('preview.becomes')}</th><th>${t('preview.status')}</th></tr></thead>
     <tbody>${parsed.rows.map((r) => html`<tr class="${r.error ? 'row-error' : ''}">
       <td class="muted">${r.line}</td><td>${r.drug.name}</td><td>${r.drug.form}</td><td>${r.drug.dosage}</td><td>${r.drug.pack}</td><td>${r.drug.manufacturer}</td>
-      <td class="num">${Number.isNaN(r.price) ? '—' : money(r.price, cur)}</td><td class="num">${r.quantity ?? ''}</td>
+      <td class="num">${Number.isNaN(r.price) ? '—' : money(ctx, r.price)}</td><td class="num">${r.quantity ?? ''}</td>
       <td class="num small">${r.error ? '' : stockChange(r)}</td>
-      <td class="small">${r.matched && r.status !== 'dup' ? html`<div class="muted">→ <a href="/drug/${r.matched.id}" target="_blank">${drugTitle(r.matched)}</a></div>` : ''}${r.error ? html`<span class="err">${r.error}</span><div class="muted mono">${r.raw}</div>`
-        : r.status === 'new' ? html`<span class="badge badge-new">новый препарат</span>`
-        : r.status === 'update' ? html`<span class="badge">обновит цену${r.oldPrice !== undefined ? html` (было ${money(r.oldPrice, cur)})` : ''}</span>`
-        : r.status === 'dup' ? html`<span class="muted">повтор: ${stock === 'add' ? 'остатки суммируются, цена' : 'будет использована'} из последней строки</span>`
-        : html`<span class="badge badge-ok">из каталога</span>`}</td>
+      <td class="small">${r.matched && r.status !== 'dup' ? html`<div class="muted">→ <a href="/drug/${r.matched.id}" target="_blank">${drugTitle(r.matched)}</a></div>` : ''}${r.error ? html`<span class="err">${t(r.error)}</span><div class="muted mono">${r.raw}</div>`
+        : r.status === 'new' ? html`<span class="badge badge-new">${t('preview.status_new')}</span>`
+        : r.status === 'update' ? html`<span class="badge">${t('preview.status_update')}${r.oldPrice !== undefined ? ` (${t('preview.was', { price: money(ctx, r.oldPrice) })})` : ''}</span>`
+        : r.status === 'dup' ? html`<span class="muted">${stock === 'add' ? t('preview.dup_add') : t('preview.dup_replace')}</span>`
+        : html`<span class="badge badge-ok">${t('preview.status_existing')}</span>`}</td>
     </tr>`)}</tbody></table></div>
   <form method="post" action="/admin/import/apply" class="form-actions sticky-actions">
     ${csrf(ctx)}
@@ -218,144 +217,163 @@ function importPreview(ctx, { pharmacy, parsed, text, mode, stock, summary, toDe
     <input type="hidden" name="mode" value="${mode}">
     <input type="hidden" name="stock" value="${stock}">
     <textarea name="text" hidden>${text}</textarea>
-    <button class="btn" ${summary.ok ? '' : 'disabled'}>Загрузить ${summary.ok} ${plural(summary.ok, 'позицию', 'позиции', 'позиций')}</button>
-    <button class="btn btn-ghost" formaction="/admin/import/edit">← Исправить текст</button>
+    <button class="btn" ${summary.ok ? '' : 'disabled'}>${t('preview.load', { n: summary.ok })}</button>
+    <button class="btn btn-ghost" formaction="/admin/import/edit">← ${t('preview.edit')}</button>
   </form>`;
-  return page(ctx, 'Проверка импорта', body);
+  return page(ctx, t('preview.title'), body);
 }
 
 function drugs(ctx, { list, q, total, page: p, pages }) {
+  const { t } = ctx;
   const body = html`
-  <div class="page-head"><h1>Каталог препаратов</h1><a class="btn btn-small" href="/admin/drugs/new">+ Новый препарат</a></div>
-  <form method="get" class="inline-filters"><input type="search" name="q" value="${q}" placeholder="Поиск"><button class="btn btn-small">Найти</button>
-    <a class="small" href="/admin/drugs${qs({ q, orphans: ctx.query.orphans ? '' : '1' })}">${ctx.query.orphans ? 'Показать все' : 'Только без предложений'}</a></form>
-  <p class="muted small">Всего: ${total}. Карточки препаратов общие для всех аптек.</p>
+  <div class="page-head"><h1>${t('catalog.title')}</h1><a class="btn btn-small" href="/admin/drugs/new">+ ${t('drugs.new')}</a></div>
+  <form method="get" class="inline-filters"><input type="search" name="q" value="${q}" placeholder="${t('offers.search')}"><button class="btn btn-small">${t('search.button')}</button>
+    <a class="small" href="/admin/drugs${qs({ q, orphans: ctx.query.orphans ? '' : '1' })}">${ctx.query.orphans ? t('drugs.show_all') : t('drugs.only_orphans')}</a></form>
+  <p class="muted small">${t('offers.total', { n: total })} ${t('drugs.shared_hint')}</p>
   <div class="table-wrap"><table class="table">
-    <thead><tr><th>ID</th><th>Препарат</th><th>МНН</th><th>Производитель</th><th>Категория</th><th class="num">Аптек</th><th></th></tr></thead>
+    <thead><tr><th>ID</th><th>${t('field.drug')}</th><th>${t('drug.inn_short')}</th><th>${t('field.manufacturer')}</th><th>${t('field.category')}</th><th class="num">${t('dash.pharmacies')}</th><th></th></tr></thead>
     <tbody>${list.map((d) => html`<tr>
       <td class="muted">${d.id}</td><td><a href="/admin/drugs/${d.id}">${drugTitle(d)}</a> ${d.rx ? html`<span class="badge badge-rx">Rx</span>` : ''}</td>
       <td>${d.inn}</td><td>${d.manufacturer}</td><td>${d.category}</td><td class="num">${d.offers_count}</td>
-      <td><a href="/drug/${d.id}" target="_blank">на сайте</a></td></tr>`)}</tbody></table></div>
+      <td><a href="/drug/${d.id}" target="_blank">${t('drugs.on_site')}</a></td></tr>`)}</tbody></table></div>
   ${pagination(p, pages, { q, orphans: ctx.query.orphans })}`;
-  return page(ctx, 'Каталог', body);
+  return page(ctx, t('admin.nav.drugs'), body);
 }
 
 function drugEdit(ctx, { drug, categories, error, offersCount }) {
+  const { t } = ctx;
   const isNew = !drug.id;
   const body = html`
-  <div class="page-head"><h1>${isNew ? 'Новый препарат' : drugTitle(drug)}</h1></div>
-  ${error ? html`<div class="flash flash-error">${error}</div>` : ''}
+  <div class="page-head"><h1>${isNew ? t('drugs.new') : drugTitle(drug)}</h1></div>
+  ${errorBlock(error)}
   <form method="post" action="${isNew ? '/admin/drugs/new' : `/admin/drugs/${drug.id}`}" class="form card">
     ${csrf(ctx)}
-    ${drugFields(drug)}
+    ${drugFields(ctx, drug)}
     <datalist id="categories">${categories.map((c) => html`<option>${c}</option>`)}</datalist>
-    <label>Описание / показания<textarea name="description" rows="4">${drug.description || ''}</textarea></label>
-    <div class="form-actions"><button class="btn">Сохранить</button><a href="/admin/drugs">Отмена</a></div>
+    <label>${t('drugs.description')}<textarea name="description" rows="4">${drug.description || ''}</textarea></label>
+    <div class="form-actions"><button class="btn">${t('action.save')}</button><a href="/admin/drugs">${t('action.cancel')}</a></div>
   </form>
-  ${isNew ? '' : html`<form method="post" action="/admin/drugs/${drug.id}/delete" class="danger-zone" data-confirm="Удалить препарат и все его цены (${offersCount}) во всех аптеках?">
-    ${csrf(ctx)}<button class="btn btn-danger btn-small">Удалить препарат</button> <span class="muted small">Предложений в аптеках: ${offersCount}</span></form>
+  ${isNew ? '' : html`<form method="post" action="/admin/drugs/${drug.id}/delete" class="danger-zone" data-confirm="${t('drugs.confirm_delete', { n: offersCount })}">
+    ${csrf(ctx)}<button class="btn btn-danger btn-small">${t('drugs.delete')}</button> <span class="muted small">${t('drugs.offers_count', { n: offersCount })}</span></form>
     <form method="post" action="/admin/drugs/${drug.id}/merge" class="form card">
       ${csrf(ctx)}
-      <h3>Объединить с другим препаратом</h3>
-      <p class="muted small">Если это дубликат: цены аптек будут перенесены в указанную карточку, а эта — удалена.</p>
-      <div class="inline-filters"><input name="target" placeholder="ID основной карточки" inputmode="numeric" required><button class="btn btn-small">Объединить</button></div>
+      <h3>${t('drugs.merge_title')}</h3>
+      <p class="muted small">${t('drugs.merge_text')}</p>
+      <div class="inline-filters"><input name="target" placeholder="${t('drugs.merge_placeholder')}" inputmode="numeric" required><button class="btn btn-small">${t('drugs.merge')}</button></div>
     </form>`}`;
-  return page(ctx, isNew ? 'Новый препарат' : drug.name, body);
+  return page(ctx, isNew ? t('drugs.new') : drug.name, body);
 }
 
-function pharmacyFields(p = {}) {
+function pharmacyFields(ctx, p = {}) {
+  const { t } = ctx;
   return html`<div class="grid-2">
-    <label class="span-2">Название *<input name="name" value="${p.name || ''}" required></label>
-    <label>Город<input name="city" value="${p.city || ''}"></label>
-    <label>Адрес<input name="address" value="${p.address || ''}"></label>
-    <label>Телефон<input name="phone" value="${p.phone || ''}" type="tel"></label>
-    <label>Часы работы<input name="hours" value="${p.hours || ''}" placeholder="Пн–Вс 8:00–22:00"></label>
-    <label class="span-2">Сайт<input name="website" value="${p.website || ''}"></label>
-    <label class="span-2">Описание<textarea name="description" rows="2">${p.description || ''}</textarea></label>
+    <label class="span-2">${t('field.name')} *<input name="name" value="${p.name || ''}" required></label>
+    <label>${t('field.city')}<input name="city" value="${p.city || ''}"></label>
+    <label>${t('field.address')}<input name="address" value="${p.address || ''}"></label>
+    <label>${t('field.phone')}<input name="phone" value="${p.phone || ''}" type="tel"></label>
+    <label>${t('field.hours')}<input name="hours" value="${p.hours || ''}" placeholder="${t('field.hours_placeholder')}"></label>
+    <label class="span-2">${t('field.website')}<input name="website" value="${p.website || ''}"></label>
+    <label class="span-2">${t('field.description')}<textarea name="description" rows="2">${p.description || ''}</textarea></label>
   </div>`;
 }
 
 function pharmacies(ctx, { list, error, values = {} }) {
+  const { t } = ctx;
   const body = html`
-  <div class="page-head"><h1>Аптеки</h1></div>
-  ${list.length ? html`<table class="table"><thead><tr><th>Аптека</th><th>Адрес</th><th>Логины</th><th class="num">Товаров</th><th></th></tr></thead>
+  <div class="page-head"><h1>${t('nav.pharmacies')}</h1></div>
+  ${list.length ? html`<table class="table"><thead><tr><th>${t('field.pharmacy')}</th><th>${t('field.address')}</th><th>${t('pharm.logins')}</th><th class="num">${t('dash.products')}</th><th></th></tr></thead>
     <tbody>${list.map((p) => html`<tr class="${p.is_active ? '' : 'row-out'}">
-      <td><a href="/admin/pharmacies/${p.id}">${p.name}</a>${p.is_active ? '' : html` <span class="badge">скрыта</span>`}</td>
+      <td><a href="/admin/pharmacies/${p.id}">${p.name}</a>${p.is_active ? '' : html` <span class="badge">${t('admin.hidden')}</span>`}</td>
       <td class="small">${[p.city, p.address].filter(Boolean).join(', ')}</td><td class="small">${p.logins || '—'}</td>
-      <td class="num">${p.offers_count}</td><td><a href="/admin/offers?pharmacy=${p.id}">товары</a></td></tr>`)}</tbody></table>` : ''}
-  <h2 id="new">Новая аптека</h2>
-  ${error ? html`<div class="flash flash-error">${error}</div>` : ''}
+      <td class="num">${p.offers_count}</td><td><a href="/admin/offers?pharmacy=${p.id}">${t('admin.products_link')}</a></td></tr>`)}</tbody></table>` : ''}
+  <h2 id="new">${t('pharm.new')}</h2>
+  ${errorBlock(error)}
   <form method="post" action="/admin/pharmacies" class="form card">
     ${csrf(ctx)}
-    ${pharmacyFields(values)}
-    <h3>Доступ в кабинет</h3>
+    ${pharmacyFields(ctx, values)}
+    <h3>${t('pharm.access')}</h3>
     <div class="grid-2">
-      <label>Логин *<input name="login" value="${values.login || ''}" required autocomplete="off"></label>
-      <label>Пароль * <input name="password" value="${values.password || ''}" required minlength="6" autocomplete="new-password" data-genpass></label>
+      <label>${t('field.login')} *<input name="login" value="${values.login || ''}" required autocomplete="off"></label>
+      <label>${t('field.password')} * <input name="password" value="${values.password || ''}" required minlength="6" autocomplete="new-password" data-genpass></label>
     </div>
-    <div class="form-actions"><button class="btn">Создать аптеку</button></div>
+    <div class="form-actions"><button class="btn">${t('pharm.create')}</button></div>
   </form>`;
-  return page(ctx, 'Аптеки', body);
+  return page(ctx, t('nav.pharmacies'), body);
 }
 
 function pharmacyEdit(ctx, { pharmacy: p, users, error }) {
+  const { t } = ctx;
   const body = html`
-  <nav class="crumbs"><a href="/admin/pharmacies">Аптеки</a></nav>
-  <div class="page-head"><h1>${p.name}</h1><div class="head-actions"><a class="btn btn-small btn-ghost" href="/admin/offers?pharmacy=${p.id}">Товары</a><a class="btn btn-small btn-ghost" href="/admin/import?pharmacy=${p.id}">Импорт</a></div></div>
-  ${error ? html`<div class="flash flash-error">${error}</div>` : ''}
+  <nav class="crumbs"><a href="/admin/pharmacies">${t('nav.pharmacies')}</a></nav>
+  <div class="page-head"><h1>${p.name}</h1><div class="head-actions"><a class="btn btn-small btn-ghost" href="/admin/offers?pharmacy=${p.id}">${t('dash.products')}</a><a class="btn btn-small btn-ghost" href="/admin/import?pharmacy=${p.id}">${t('admin.nav.import')}</a></div></div>
+  ${errorBlock(error)}
   <form method="post" action="/admin/pharmacies/${p.id}" class="form card">
     ${csrf(ctx)}
-    ${pharmacyFields(p)}
-    <label class="check"><input type="checkbox" name="is_active" value="1" ${p.is_active ? 'checked' : ''}> Показывать на сайте</label>
-    <div class="form-actions"><button class="btn">Сохранить</button></div>
+    ${pharmacyFields(ctx, p)}
+    <label class="check"><input type="checkbox" name="is_active" value="1" ${p.is_active ? 'checked' : ''}> ${t('pharm.visible')}</label>
+    <div class="form-actions"><button class="btn">${t('action.save')}</button></div>
   </form>
-  <h2>Пользователи</h2>
-  <table class="table"><thead><tr><th>Логин</th><th>Создан</th><th>Новый пароль</th><th></th></tr></thead>
-  <tbody>${users.map((u) => html`<tr><td>${u.login}</td><td class="small">${dateRu(u.created_at)}</td>
-    <td><form method="post" action="/admin/users/${u.id}/password" class="inline-filters">${csrf(ctx)}<input name="password" minlength="6" required placeholder="новый пароль" data-genpass><button class="btn btn-small">Сменить</button></form></td>
-    <td><form method="post" action="/admin/users/${u.id}/delete" data-confirm="Удалить пользователя ${u.login}?">${csrf(ctx)}<button class="btn btn-small btn-danger">✕</button></form></td></tr>`)}</tbody></table>
+  <h2>${t('pharm.users')}</h2>
+  <table class="table"><thead><tr><th>${t('field.login')}</th><th>${t('pharm.created')}</th><th>${t('pharm.new_password')}</th><th></th></tr></thead>
+  <tbody>${users.map((u) => html`<tr><td>${u.login}</td><td class="small">${dateFmt(ctx, u.created_at)}</td>
+    <td><form method="post" action="/admin/users/${u.id}/password" class="inline-filters">${csrf(ctx)}<input name="password" minlength="6" required placeholder="${t('pharm.new_password')}" data-genpass><button class="btn btn-small">${t('pharm.change')}</button></form></td>
+    <td><form method="post" action="/admin/users/${u.id}/delete" data-confirm="${t('pharm.confirm_delete_user', { login: u.login })}">${csrf(ctx)}<button class="btn btn-small btn-danger">✕</button></form></td></tr>`)}</tbody></table>
   <form method="post" action="/admin/pharmacies/${p.id}/users" class="inline-filters card">
-    ${csrf(ctx)}<strong>Добавить пользователя:</strong>
-    <input name="login" placeholder="логин" required><input name="password" placeholder="пароль" minlength="6" required data-genpass><button class="btn btn-small">Добавить</button>
+    ${csrf(ctx)}<strong>${t('pharm.add_user')}:</strong>
+    <input name="login" placeholder="${t('field.login')}" required><input name="password" placeholder="${t('field.password')}" minlength="6" required data-genpass><button class="btn btn-small">${t('action.add')}</button>
   </form>
-  <form method="post" action="/admin/pharmacies/${p.id}/delete" class="danger-zone" data-confirm="Удалить аптеку, её пользователей и все товары? Это необратимо.">
-    ${csrf(ctx)}<button class="btn btn-danger btn-small">Удалить аптеку</button></form>`;
+  <form method="post" action="/admin/pharmacies/${p.id}/delete" class="danger-zone" data-confirm="${t('pharm.confirm_delete')}">
+    ${csrf(ctx)}<button class="btn btn-danger btn-small">${t('pharm.delete')}</button></form>`;
   return page(ctx, p.name, body);
 }
 
 function profile(ctx, { pharmacy }) {
+  const { t } = ctx;
   const body = html`
-  <div class="page-head"><h1>Профиль аптеки</h1><a href="/pharmacy/${pharmacy.id}" target="_blank">Посмотреть на сайте →</a></div>
-  <form method="post" action="/admin/profile" class="form card">${csrf(ctx)}${pharmacyFields(pharmacy)}<div class="form-actions"><button class="btn">Сохранить</button></div></form>`;
-  return page(ctx, 'Профиль', body);
+  <div class="page-head"><h1>${t('admin.nav.profile')}</h1><a href="/pharmacy/${pharmacy.id}" target="_blank">${t('dash.public_page')} →</a></div>
+  <form method="post" action="/admin/profile" class="form card">${csrf(ctx)}${pharmacyFields(ctx, pharmacy)}<div class="form-actions"><button class="btn">${t('action.save')}</button></div></form>`;
+  return page(ctx, t('admin.nav.profile'), body);
 }
 
 function account(ctx, { error }) {
+  const { t } = ctx;
   const body = html`
-  <div class="page-head"><h1>Смена пароля</h1></div>
-  ${error ? html`<div class="flash flash-error">${error}</div>` : ''}
+  <div class="page-head"><h1>${t('account.title')}</h1></div>
+  ${errorBlock(error)}
   <form method="post" action="/admin/account" class="form card narrow">
     ${csrf(ctx)}
-    <label>Текущий пароль<input type="password" name="current" required autocomplete="current-password"></label>
-    <label>Новый пароль<input type="password" name="password" required minlength="6" autocomplete="new-password"></label>
-    <label>Повторите<input type="password" name="password2" required minlength="6" autocomplete="new-password"></label>
-    <div class="form-actions"><button class="btn">Сменить пароль</button></div>
+    <label>${t('account.current')}<input type="password" name="current" required autocomplete="current-password"></label>
+    <label>${t('account.new')}<input type="password" name="password" required minlength="6" autocomplete="new-password"></label>
+    <label>${t('account.repeat')}<input type="password" name="password2" required minlength="6" autocomplete="new-password"></label>
+    <div class="form-actions"><button class="btn">${t('account.button')}</button></div>
   </form>`;
-  return page(ctx, 'Пароль', body);
+  return page(ctx, t('admin.nav.password'), body);
 }
 
 function settingsPage(ctx) {
-  const s = ctx.settings;
+  const { t } = ctx;
+  const s = ctx.rawSettings;
   const body = html`
-  <div class="page-head"><h1>Настройки сайта</h1></div>
-  <form method="post" action="/admin/settings" class="form card narrow">
+  <div class="page-head"><h1>${t('settings.title')}</h1></div>
+  <form method="post" action="/admin/settings" class="form card">
     ${csrf(ctx)}
-    <label>Название сайта<input name="site_name" value="${s.site_name}" required></label>
-    <label>Слоган<input name="site_tagline" value="${s.site_tagline}"></label>
-    <label>Валюта (как подписывать цены)<input name="currency" value="${s.currency}" required placeholder="руб., ₽, TMT, сом, ₸…"></label>
-    <div class="form-actions"><button class="btn">Сохранить</button></div>
+    <p class="muted small">${t('settings.empty_hint')}</p>
+    ${Object.entries(LANGS).map(([code, l]) => html`<fieldset>
+      <legend>${l.label}</legend>
+      <div class="grid-2">
+        <label>${t('settings.site_name')}<input name="site_name_${code}" value="${s[`site_name_${code}`] || ''}" placeholder="${ctx.tIn(code, 'site.name')}"></label>
+        <label>${t('settings.tagline')}<input name="site_tagline_${code}" value="${s[`site_tagline_${code}`] || ''}" placeholder="${ctx.tIn(code, 'site.tagline')}"></label>
+      </div>
+    </fieldset>`)}
+    <div class="grid-2">
+      <label>${t('settings.currency')}<input name="currency" value="${s.currency}" required placeholder="TMT, ₽, $…"></label>
+      <label>${t('settings.default_lang')}
+        <select name="default_lang">${Object.entries(LANGS).map(([code, l]) => html`<option value="${code}" ${s.default_lang === code ? 'selected' : ''}>${l.label}</option>`)}</select>
+      </label>
+    </div>
+    <div class="form-actions"><button class="btn">${t('action.save')}</button></div>
   </form>`;
-  return page(ctx, 'Настройки', body);
+  return page(ctx, t('admin.nav.settings'), body);
 }
 
 module.exports = {

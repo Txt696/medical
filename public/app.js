@@ -1,6 +1,12 @@
 (function () {
   'use strict';
 
+  let T = {};
+  try { T = JSON.parse(document.getElementById('i18n').textContent); } catch (e) { /* defaults below */ }
+  function tr(key, fallback, n) {
+    return String(T[key] || fallback).replace('{n}', n);
+  }
+
   function debounce(fn, ms) {
     let t;
     return function () {
@@ -64,7 +70,7 @@
   }
 
   function priceText(d) {
-    return d.min_price != null ? 'от ' + Number(d.min_price).toLocaleString('ru-RU') : 'нет в наличии';
+    return d.min_price != null ? tr('from', 'от') + ' ' + Number(d.min_price).toLocaleString(T.locale || undefined) : tr('out', 'нет в наличии');
   }
 
   // Public search boxes: suggestions lead to the drug page.
@@ -103,7 +109,7 @@
       left.appendChild(el('span', '', title(d)));
       if (d.manufacturer) left.appendChild(el('span', 'muted small', ' · ' + d.manufacturer));
       b.appendChild(left);
-      b.appendChild(el('span', 'muted small', d.offers_count ? 'в ' + d.offers_count + ' апт.' : ''));
+      b.appendChild(el('span', 'muted small', d.offers_count ? tr('inPharmacies', 'в {n} апт.', d.offers_count) : ''));
       return b;
     }, function (d) {
       idInput.value = d.id;
@@ -157,7 +163,7 @@
 
   // Password generator for admin forms
   document.querySelectorAll('[data-genpass]').forEach(function (input) {
-    const b = el('button', 'linklike small', 'сгенерировать');
+    const b = el('button', 'linklike small', tr('generate', 'сгенерировать'));
     b.type = 'button';
     b.style.marginLeft = '8px';
     b.addEventListener('click', function () {

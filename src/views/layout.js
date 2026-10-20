@@ -1,25 +1,18 @@
 'use strict';
-const { html } = require('../html');
+const { html, raw } = require('../html');
+const { LANGS } = require('../i18n');
 
-function money(n, currency) {
+function money(ctx, n) {
   if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
   const v = Number(n);
-  const s = v.toLocaleString('ru-RU', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
-  return `${s} ${currency}`;
+  const s = v.toLocaleString(ctx.locale, { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
+  return `${s} ${ctx.settings.currency}`;
 }
 
-function plural(n, one, few, many) {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}
-
-function dateRu(s) {
+function dateFmt(ctx, s) {
   if (!s) return '';
   const d = new Date(`${s.replace(' ', 'T')}Z`);
-  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(ctx.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function drugTitle(d) {
@@ -53,10 +46,29 @@ function flashBlock(flash) {
   return html`<div class="flash flash-${flash.type || 'info'}">${flash.message}</div>`;
 }
 
+function langSwitch(ctx) {
+  return html`<div class="lang-switch">${Object.entries(LANGS).map(([code, l]) => (code === ctx.lang
+    ? html`<span class="active" title="${l.label}">${l.short}</span>`
+    : html`<a href="/lang/${code}" title="${l.label}" hreflang="${code}" lang="${code}">${l.short}</a>`))}</div>`;
+}
+
+// Strings needed by public/app.js
+function clientStrings(ctx) {
+  const { t } = ctx;
+  const data = {
+    from: t('price.from'),
+    out: t('stock.out'),
+    inPharmacies: t('suggest.in_pharmacies'),
+    generate: t('admin.generate'),
+    locale: ctx.locale,
+  };
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
 function layout(ctx, { title, body, q = '', admin = false }) {
-  const { settings, user } = ctx;
+  const { settings, user, t } = ctx;
   return html`<!doctype html>
-<html lang="ru">
+<html lang="${ctx.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -69,15 +81,16 @@ function layout(ctx, { title, body, q = '', admin = false }) {
   <div class="container topbar-inner">
     <a class="logo" href="/"><span class="logo-mark">+</span><span>${settings.site_name}</span></a>
     <form class="topsearch" action="/search" method="get" role="search">
-      <input type="search" name="q" value="${q}" placeholder="Название лекарства или действующее вещество" autocomplete="off" data-suggest>
-      <button type="submit">Найти</button>
+      <input type="search" name="q" value="${q}" placeholder="${t('search.placeholder')}" autocomplete="off" data-suggest>
+      <button type="submit">${t('search.button')}</button>
       <div class="suggest" hidden></div>
     </form>
     <nav class="topnav">
-      <a href="/catalog">Каталог</a>
-      <a href="/pharmacies">Аптеки</a>
-      ${user ? html`<a class="btn btn-small" href="/admin">Кабинет</a>` : html`<a class="btn btn-small btn-ghost" href="/login">Для аптек</a>`}
+      <a href="/catalog">${t('nav.catalog')}</a>
+      <a href="/pharmacies">${t('nav.pharmacies')}</a>
+      ${user ? html`<a class="btn btn-small" href="/admin">${t('nav.cabinet')}</a>` : html`<a class="btn btn-small btn-ghost" href="/login">${t('nav.for_pharmacies')}</a>`}
     </nav>
+    ${langSwitch(ctx)}
   </div>
 </header>
 ${admin ? adminNav(ctx) : ''}
@@ -92,33 +105,36 @@ ${body}
       <span class="muted">${settings.site_tagline}</span>
     </div>
     <div class="muted small">
-      Цены и наличие указывают сами аптеки, уточняйте их по телефону перед визитом.<br>
-      Информация на сайте не является медицинской рекомендацией. Перед применением проконсультируйтесь с врачом.
+      ${t('footer.prices')}<br>
+      ${t('footer.medical')}
     </div>
   </div>
 </footer>
+<script id="i18n" type="application/json">${raw(clientStrings(ctx))}</script>
 <script src="/static/app.js" defer></script>
 </body>
 </html>`;
 }
 
 function adminNav(ctx) {
-  const { user, path } = ctx;
+  const { user, path, t } = ctx;
   const link = (href, label) => html`<a href="${href}" class="${path === href || (href !== '/admin' && path.startsWith(href)) ? 'active' : ''}">${label}</a>`;
   return html`<div class="adminbar"><div class="container adminbar-inner">
     <div class="adminbar-links">
-      ${link('/admin', 'Обзор')}
-      ${link('/admin/offers', 'Мои товары')}
-      ${link('/admin/offers/new', '+ Добавить')}
-      ${link('/admin/import', 'Импорт')}
-      ${user.role === 'admin' ? [link('/admin/drugs', 'Каталог'), link('/admin/pharmacies', 'Аптеки'), link('/admin/settings', 'Настройки')] : link('/admin/profile', 'Профиль аптеки')}
+      ${link('/admin', t('admin.nav.overview'))}
+      ${link('/admin/offers', t('admin.nav.offers'))}
+      ${link('/admin/offers/new', t('admin.nav.add'))}
+      ${link('/admin/import', t('admin.nav.import'))}
+      ${user.role === 'admin'
+        ? [link('/admin/drugs', t('admin.nav.drugs')), link('/admin/pharmacies', t('admin.nav.pharmacies')), link('/admin/settings', t('admin.nav.settings'))]
+        : link('/admin/profile', t('admin.nav.profile'))}
     </div>
     <div class="adminbar-user">
-      <span class="muted">${user.login}${user.pharmacy_name ? html` · ${user.pharmacy_name}` : user.role === 'admin' ? ' · администратор' : ''}</span>
-      <a href="/admin/account">Пароль</a>
-      <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="${ctx.csrf}"><button class="linklike">Выйти</button></form>
+      <span class="muted">${user.login}${user.pharmacy_name ? html` · ${user.pharmacy_name}` : user.role === 'admin' ? ` · ${t('admin.role_admin')}` : ''}</span>
+      <a href="/admin/account">${t('admin.nav.password')}</a>
+      <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="${ctx.csrf}"><button class="linklike">${t('admin.nav.logout')}</button></form>
     </div>
   </div></div>`;
 }
 
-module.exports = { layout, money, plural, dateRu, drugTitle, qs, pagination };
+module.exports = { layout, money, dateFmt, drugTitle, qs, pagination };

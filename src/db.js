@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { AppError } = require('./i18n');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'pharmacy.db');
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -75,17 +76,25 @@ CREATE INDEX IF NOT EXISTS idx_offers_drug ON offers(drug_id);
 CREATE INDEX IF NOT EXISTS idx_drugs_category ON drugs(category);
 `);
 
+// Site name and tagline are stored per language (site_name_ru, site_tagline_tk…);
+// empty values fall back to the translations in src/locales.
 const DEFAULT_SETTINGS = {
-  site_name: 'АптекаСправка',
-  site_tagline: 'Сравните цены на лекарства во всех аптеках города',
   currency: 'руб.',
+  default_lang: 'ru',
 };
 
 function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all();
   const s = { ...DEFAULT_SETTINGS };
   for (const r of rows) s[r.key] = r.value;
+  // settings saved before the site became multilingual
+  if (s.site_name && s.site_name_ru === undefined) s.site_name_ru = s.site_name;
+  if (s.site_tagline && s.site_tagline_ru === undefined) s.site_tagline_ru = s.site_tagline;
   return s;
+}
+
+function deleteSetting(key) {
+  db.prepare('DELETE FROM settings WHERE key = ?').run(key);
 }
 
 function setSetting(key, value) {
@@ -110,7 +119,7 @@ function normUnits(s) {
   return norm(s)
     .replace(/(\d)\s+(?=[a-zа-я%])/g, '$1')
     .replace(/^(?:№|n|no\.?)\s*/, '')
-    .replace(/\s*(?:шт\.?|штук)$/, '');
+    .replace(/\s*(?:шт\.?|штук|sany|pcs)$/, '');
 }
 
 function drugKey(d) {
@@ -126,7 +135,7 @@ const DRUG_FIELDS = ['name', 'inn', 'form', 'dosage', 'pack', 'manufacturer', 'c
 function cleanDrug(input) {
   const d = {};
   for (const f of DRUG_FIELDS) {
-    if (f === 'rx') d.rx = input.rx === true || ['1', 'on', 'true', 'да', 'yes', 'rx', 'рецепт', '+'].includes(norm(input.rx)) ? 1 : 0;
+    if (f === 'rx') d.rx = input.rx === true || ['1', 'on', 'true', 'да', 'yes', 'hawa', 'rx', 'рецепт', 'resept', '+'].includes(norm(input.rx)) ? 1 : 0;
     else if (f === 'description') d[f] = String(input[f] ?? '').trim();
     else d[f] = String(input[f] ?? '').trim().replace(/\s+/g, ' ');
   }
@@ -155,7 +164,7 @@ function findDrug(d) {
 // otherwise creates a new card.
 function findOrCreateDrug(input) {
   const d = cleanDrug(input);
-  if (!d.name) throw new Error('Не указано название препарата');
+  if (!d.name) throw new AppError('err.no_name');
   const existing = findDrug(d);
   if (existing) {
     // fill empty fields of the existing card with new data
@@ -176,9 +185,9 @@ function findOrCreateDrug(input) {
 
 function updateDrug(id, input) {
   const d = cleanDrug(input);
-  if (!d.name) throw new Error('Не указано название препарата');
+  if (!d.name) throw new AppError('err.no_name');
   const clash = db.prepare('SELECT id FROM drugs WHERE norm_key = ? AND id <> ?').get(drugKey(d), id);
-  if (clash) throw new Error(`Такой препарат уже есть в каталоге (#${clash.id})`);
+  if (clash) throw new AppError('err.drug_exists_id', { id: clash.id });
   db.prepare(`
     UPDATE drugs SET name=?, inn=?, form=?, dosage=?, pack=?, manufacturer=?, country=?, category=?, rx=?, description=?, norm_key=?, search=?
     WHERE id = ?`)
@@ -247,6 +256,6 @@ function transaction(fn) {
 }
 
 module.exports = {
-  db, DB_PATH, getSettings, setSetting, norm, drugKey, cleanDrug, findDrugByKey, findDrug, findOrCreateDrug, updateDrug,
+  db, DB_PATH, getSettings, setSetting, deleteSetting, norm, drugKey, cleanDrug, findDrugByKey, findDrug, findOrCreateDrug, updateDrug,
   getDrug, upsertOffer, nextStock, hashPassword, verifyPassword, createUser, transaction, DRUG_FIELDS,
 };
