@@ -46,10 +46,21 @@ function flashBlock(flash) {
   return html`<div class="flash flash-${flash.type || 'info'}">${flash.message}</div>`;
 }
 
+// Drop-down language menu; <details> works without JS, app.js closes it on outside click
 function langSwitch(ctx) {
-  return html`<div class="lang-switch">${Object.entries(LANGS).map(([code, l]) => (code === ctx.lang
-    ? html`<span class="active" title="${l.label}">${l.short}</span>`
-    : html`<a href="/lang/${code}" title="${l.label}" hreflang="${code}" lang="${code}">${l.short}</a>`))}</div>`;
+  const current = LANGS[ctx.lang];
+  return html`<details class="lang-switch">
+    <summary title="${current.label}" aria-label="${current.label}">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>
+      <span>${current.short}</span>
+      <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+    </summary>
+    <div class="lang-menu" role="menu">
+      ${Object.entries(LANGS).map(([code, l]) => (code === ctx.lang
+        ? html`<span class="lang-item active" role="menuitem" aria-current="true"><b>${l.short}</b>${l.label}<i>✓</i></span>`
+        : html`<a class="lang-item" role="menuitem" href="/lang/${code}" hreflang="${code}" lang="${code}"><b>${l.short}</b>${l.label}</a>`))}
+    </div>
+  </details>`;
 }
 
 // Strings needed by public/app.js

@@ -149,6 +149,17 @@
     });
   }
 
+  // Language menu: close on outside click or Escape
+  const langMenu = document.querySelector('details.lang-switch');
+  if (langMenu) {
+    document.addEventListener('click', function (e) {
+      if (langMenu.open && !langMenu.contains(e.target)) langMenu.open = false;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && langMenu.open) { langMenu.open = false; langMenu.querySelector('summary').focus(); }
+    });
+  }
+
   // Auto-submit filters
   document.querySelectorAll('[data-autosubmit]').forEach(function (s) {
     s.addEventListener('change', function () { s.form.submit(); });
