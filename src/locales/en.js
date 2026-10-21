@@ -1,7 +1,7 @@
 'use strict';
 module.exports = {
   'site.name': 'PharmaFind',
-  'site.tagline': 'Compare medicine prices across every pharmacy in town',
+  'site.tagline': 'Compare medicine prices across all pharmacies in Ashgabat, Arkadag and other velayats',
 
   'nav.home': 'Home',
   'nav.catalog': 'Catalogue',

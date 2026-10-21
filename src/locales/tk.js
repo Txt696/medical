@@ -1,7 +1,7 @@
 'use strict';
 module.exports = {
   'site.name': 'DermanTap',
-  'site.tagline': 'Şäheriň ähli dermanhanalarynda derman bahalaryny deňeşdiriň',
+  'site.tagline': 'Aşgabat şäheriniň, Arkadag şäheriniň we beýleki welaýatlaryň ähli dermanhanalarynda derman bahalaryny deňeşdiriň',
 
   'nav.home': 'Baş sahypa',
   'nav.catalog': 'Katalog',
