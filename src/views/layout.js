@@ -1,6 +1,20 @@
 'use strict';
 const { html, raw } = require('../html');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 const { LANGS } = require('../i18n');
+
+// /static/app.js?v=<hash>: a new version of a file gets a new URL,
+// so browsers never keep using an old cached copy after an update.
+const assetVersions = {};
+function asset(file) {
+  if (!assetVersions[file]) {
+    const data = fs.readFileSync(path.join(__dirname, '..', '..', 'public', file));
+    assetVersions[file] = crypto.createHash('sha1').update(data).digest('hex').slice(0, 10);
+  }
+  return `/static/${file}?v=${assetVersions[file]}`;
+}
 
 function money(ctx, n) {
   if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
@@ -84,13 +98,13 @@ function layout(ctx, { title, body, q = '', admin = false }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title ? `${title} — ${settings.site_name}` : settings.site_name}</title>
-<link rel="stylesheet" href="/static/style.css">
-<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="${asset('style.css')}">
+<link rel="icon" href="${asset('logo.svg')}" type="image/svg+xml">
 </head>
 <body class="${admin ? 'is-admin' : ''}">
 <header class="topbar">
   <div class="container topbar-inner">
-    <a class="logo" href="/"><img class="logo-mark" src="/static/logo.svg" alt="" width="42" height="42"><span>${settings.site_name}</span></a>
+    <a class="logo" href="/"><img class="logo-mark" src="${asset('logo.svg')}" alt="" width="42" height="42"><span>${settings.site_name}</span></a>
     <form class="topsearch" action="/search" method="get" role="search">
       <input type="search" name="q" value="${q}" placeholder="${t('search.placeholder')}" autocomplete="off" data-suggest>
       <button type="submit">${t('search.button')}</button>
@@ -122,7 +136,7 @@ ${body}
   </div>
 </footer>
 <script id="i18n" type="application/json">${raw(clientStrings(ctx))}</script>
-<script src="/static/app.js" defer></script>
+<script src="${asset('app.js')}" defer></script>
 </body>
 </html>`;
 }

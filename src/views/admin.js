@@ -277,7 +277,7 @@ function phonesEditor(ctx, p) {
   </div>`;
   return html`<div class="span-2 phones" data-phones>
     <div class="phones-label">${t('field.phones')}</div>
-    <div class="phone-rows">${phones.length ? phones.map((ph) => row(ph)) : row()}</div>
+    <div class="phone-rows">${phones.map((ph) => row(ph))}${row()}</div>
     <template data-phone-template>${row()}</template>
     <button type="button" class="btn btn-small btn-ghost" data-phone-add>${t('phone.add')}</button>
   </div>`;

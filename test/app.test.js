@@ -217,5 +217,6 @@ test('pharmacy with several phone numbers', async () => {
   assert.match(page.text, /Мобильный:/);
 
   const edit = await c.get(`/admin/pharmacies/${p.id}`);
-  assert.equal((edit.text.match(/name="phone_number"/g) || []).length, 3, 'two rows + template');
+  assert.equal((edit.text.match(/name="phone_number"/g) || []).length, 4, 'two rows + empty row + template');
+  assert.match(edit.text, /\/static\/app\.js\?v=[0-9a-f]{10}/);
 });
