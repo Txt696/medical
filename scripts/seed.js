@@ -9,10 +9,10 @@ if (db.prepare('SELECT COUNT(*) AS n FROM pharmacies').get().n > 0) {
 }
 
 const pharmacies = [
-  { name: 'Аптека «Здоровье»', city: 'Москва', address: 'ул. Ленина, 12', phone: '+7 (495) 111-22-33', hours: 'Круглосуточно', login: 'zdorovie' },
-  { name: 'Фарм-Плюс', city: 'Москва', address: 'пр. Мира, 45', phone: '+7 (495) 222-33-44', hours: 'Пн–Вс 8:00–22:00', login: 'farmplus' },
-  { name: 'Социальная аптека №5', city: 'Москва', address: 'ул. Садовая, 3', phone: '+7 (495) 333-44-55', hours: 'Пн–Сб 9:00–20:00', login: 'social5' },
-  { name: 'Аптека Вита', city: 'Санкт-Петербург', address: 'Невский пр., 100', phone: '+7 (812) 444-55-66', hours: 'Пн–Вс 8:00–23:00', login: 'vita' },
+  { name: 'Аптека «Здоровье»', city: 'Москва', address: 'ул. Ленина, 12', phones: [['work', '+7 (495) 111-22-33'], ['mobile', '+7 (916) 111-22-33']], hours: 'Круглосуточно', login: 'zdorovie' },
+  { name: 'Фарм-Плюс', city: 'Москва', address: 'пр. Мира, 45', phones: [['work', '+7 (495) 222-33-44'], ['mobile', '+7 (926) 222-33-44']], hours: 'Пн–Вс 8:00–22:00', login: 'farmplus' },
+  { name: 'Социальная аптека №5', city: 'Москва', address: 'ул. Садовая, 3', phones: [['work', '+7 (495) 333-44-55']], hours: 'Пн–Сб 9:00–20:00', login: 'social5' },
+  { name: 'Аптека Вита', city: 'Санкт-Петербург', address: 'Невский пр., 100', phones: [['work', '+7 (812) 444-55-66'], ['mobile', '+7 (911) 444-55-66']], hours: 'Пн–Вс 8:00–23:00', login: 'vita' },
 ];
 
 // [name, inn, form, dosage, pack, manufacturer, country, category, rx, base price]
@@ -61,8 +61,9 @@ const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147
 
 transaction(() => {
   const ids = pharmacies.map((p) => {
-    const id = db.prepare('INSERT INTO pharmacies (name, city, address, phone, hours) VALUES (?, ?, ?, ?, ?)')
-      .run(p.name, p.city, p.address, p.phone, p.hours).lastInsertRowid;
+    const phones = p.phones.map(([type, number]) => ({ type, number }));
+    const id = db.prepare('INSERT INTO pharmacies (name, city, address, phone, phones, hours) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(p.name, p.city, p.address, phones[0].number, JSON.stringify(phones), p.hours).lastInsertRowid;
     createUser({ login: p.login, password: 'demo123', role: 'pharmacy', pharmacyId: id });
     return id;
   });

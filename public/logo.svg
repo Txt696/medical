@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <path id="s" d="M21 50.5C28 50 38.5 49.5 39 46.8C39.5 44 25 45 24.6 42.3C24.2 39.6 35 40.5 41 37C48 33 52.5 26 54 18.5C55.2 12 51.5 7.5 46 7.5C41 7.5 38.3 11 38.8 15.2"/>
+  </defs>
+  <g fill="#119f6d">
+    <path d="M10 18.5H54C54 30.5 44.5 38 32 38C19.5 38 10 30.5 10 18.5Z"/>
+    <rect x="29.4" y="36" width="5.2" height="17" rx="1.2"/>
+    <path d="M18.5 59.5C18.5 54.8 24.5 52.2 32 52.2C39.5 52.2 45.5 54.8 45.5 59.5Z"/>
+  </g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#s" stroke="#fff" stroke-width="7"/>
+    <use href="#s" stroke="#0b6e4b" stroke-width="3.8"/>
+  </g>
+  <ellipse cx="39" cy="17.6" rx="3.3" ry="2.4" transform="rotate(78 39 17.6)" fill="#0b6e4b" stroke="#fff" stroke-width="1.4"/>
+  <path d="M38.4 20.8 37.9 23.2M37.9 23.2 36.8 24.3M37.9 23.2 38.3 24.7" stroke="#d64545" stroke-width="1" stroke-linecap="round" fill="none"/>
+</svg>

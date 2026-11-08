@@ -44,7 +44,7 @@ h3 { font-size: 17px; margin: 20px 0 8px; }
 .topbar-inner { display: flex; align-items: center; gap: 20px; height: 64px; }
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 19px; color: var(--text); white-space: nowrap; }
 .logo:hover { text-decoration: none; }
-.logo-mark { width: 32px; height: 32px; border-radius: 8px; background: var(--green); color: #fff; display: grid; place-items: center; font-size: 24px; line-height: 1; }
+.logo-mark { width: 42px; height: 42px; margin: -4px -2px -4px -6px; flex-shrink: 0; display: block; }
 .topsearch { flex: 1; display: flex; position: relative; max-width: 560px; }
 .topsearch input { flex: 1; border-radius: 10px 0 0 10px; }
 .topsearch button { border-radius: 0 10px 10px 0; }
@@ -199,7 +199,7 @@ label.check input { width: auto; margin: 0; }
 .section-head .inline-filters { margin: 0; flex-wrap: nowrap; }
 .section-head .inline-filters select { flex: 0 0 auto; }
 .offers { display: flex; flex-direction: column; gap: 8px; }
-.offer { display: grid; grid-template-columns: 1fr 200px 140px 170px; gap: 16px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; }
+.offer { display: grid; grid-template-columns: 1fr 200px 120px 210px; gap: 16px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; }
 .offer-best { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
 .offer-out { opacity: .6; }
 .offer-price { font-size: 21px; font-weight: 700; text-align: right; }
@@ -327,3 +327,14 @@ label.check input { width: auto; margin: 0; }
 a.lang-item:hover { background: var(--green-soft); text-decoration: none; }
 .lang-item.active { font-weight: 600; }
 .settings-langs fieldset { margin-bottom: 12px; }
+
+/* ---------- pharmacy phone numbers ---------- */
+.phones { margin-bottom: 14px; }
+.phones-label { font-size: 14px; font-weight: 500; margin-bottom: 5px; }
+.phone-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.phone-row select { width: 150px; flex-shrink: 0; }
+.phone-row input { flex: 1; }
+.phone-row .btn { flex-shrink: 0; }
+.phone-extra { display: block; margin-top: 6px; white-space: nowrap; }
+.offer-action .phone-extra { font-size: 13px; white-space: normal; }
+.pharm-contacts .phone-extra { margin-top: 0; }

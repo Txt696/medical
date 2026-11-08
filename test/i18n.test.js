@@ -22,6 +22,7 @@ test('every key used in the code exists', () => {
   }
   for (const f of ['name', 'inn', 'form', 'dosage', 'pack', 'manufacturer', 'country', 'category', 'rx', 'description', 'price', 'quantity']) used.add(`field.${f}`);
   for (const m of ['header', 'positional', 'free']) used.add(`preview.mode_${m}`);
+  for (const m of require('../src/phones').PHONE_TYPES) used.add(`phone.${m}`);
   const missing = [...used].filter((k) => !(k in dicts.ru));
   assert.deepEqual(missing, []);
 });

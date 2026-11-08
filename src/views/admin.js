@@ -2,6 +2,7 @@
 const { html } = require('../html');
 const { layout, money, dateFmt, drugTitle, qs, pagination } = require('./layout');
 const { LANGS } = require('../i18n');
+const { PHONE_TYPES, parsePhones, phonesFromBody } = require('../phones');
 
 const page = (ctx, title, body) => layout(ctx, { title, body, admin: true });
 const csrf = (ctx) => html`<input type="hidden" name="_csrf" value="${ctx.csrf}">`;
@@ -264,14 +265,32 @@ function drugEdit(ctx, { drug, categories, error, offersCount }) {
   return page(ctx, isNew ? t('drugs.new') : drug.name, body);
 }
 
+// Several numbers with a type each; app.js adds and removes rows
+function phonesEditor(ctx, p) {
+  const { t } = ctx;
+  const fromForm = p.phone_number !== undefined;
+  const phones = fromForm ? phonesFromBody(p) : parsePhones(p.phones);
+  const row = (ph = { type: 'work', number: '' }) => html`<div class="phone-row">
+    <select name="phone_type" aria-label="${t('phone.type')}">${PHONE_TYPES.map((type) => html`<option value="${type}" ${ph.type === type ? 'selected' : ''}>${t(`phone.${type}`)}</option>`)}</select>
+    <input name="phone_number" value="${ph.number}" type="tel" placeholder="${t('phone.placeholder')}" aria-label="${t('field.phone')}">
+    <button type="button" class="btn btn-small btn-ghost" data-phone-remove title="${t('phone.remove')}" aria-label="${t('phone.remove')}">✕</button>
+  </div>`;
+  return html`<div class="span-2 phones" data-phones>
+    <div class="phones-label">${t('field.phones')}</div>
+    <div class="phone-rows">${phones.length ? phones.map((ph) => row(ph)) : row()}</div>
+    <template data-phone-template>${row()}</template>
+    <button type="button" class="btn btn-small btn-ghost" data-phone-add>${t('phone.add')}</button>
+  </div>`;
+}
+
 function pharmacyFields(ctx, p = {}) {
   const { t } = ctx;
   return html`<div class="grid-2">
     <label class="span-2">${t('field.name')} *<input name="name" value="${p.name || ''}" required></label>
     <label>${t('field.city')}<input name="city" value="${p.city || ''}"></label>
     <label>${t('field.address')}<input name="address" value="${p.address || ''}"></label>
-    <label>${t('field.phone')}<input name="phone" value="${p.phone || ''}" type="tel"></label>
     <label>${t('field.hours')}<input name="hours" value="${p.hours || ''}" placeholder="${t('field.hours_placeholder')}"></label>
+    ${phonesEditor(ctx, p)}
     <label class="span-2">${t('field.website')}<input name="website" value="${p.website || ''}"></label>
     <label class="span-2">${t('field.description')}<textarea name="description" rows="2">${p.description || ''}</textarea></label>
   </div>`;

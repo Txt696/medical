@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS pharmacies (
   city        TEXT NOT NULL DEFAULT '',
   address     TEXT NOT NULL DEFAULT '',
   phone       TEXT NOT NULL DEFAULT '',
+  phones      TEXT NOT NULL DEFAULT '[]',
   hours       TEXT NOT NULL DEFAULT '',
   website     TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
@@ -75,6 +76,12 @@ CREATE TABLE IF NOT EXISTS offers (
 CREATE INDEX IF NOT EXISTS idx_offers_drug ON offers(drug_id);
 CREATE INDEX IF NOT EXISTS idx_drugs_category ON drugs(category);
 `);
+
+// Databases created before pharmacies could have several numbers: the old one becomes "work".
+if (!db.prepare('PRAGMA table_info(pharmacies)').all().some((c) => c.name === 'phones')) {
+  db.exec("ALTER TABLE pharmacies ADD COLUMN phones TEXT NOT NULL DEFAULT '[]'");
+  db.exec(`UPDATE pharmacies SET phones = json_array(json_object('type', 'work', 'number', phone)) WHERE phone <> ''`);
+}
 
 // Site name and tagline are stored per language (site_name_ru, site_tagline_tk…);
 // empty values fall back to the translations in src/locales.

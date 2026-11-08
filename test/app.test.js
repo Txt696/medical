@@ -28,12 +28,12 @@ test.after(() => server.close());
 // minimal cookie-keeping client
 function client() {
   const jar = {};
-  async function req(method, url, form) {
+  async function req(method, url, form, pairs) {
     const headers = { cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ') };
     let body;
-    if (form) {
+    if (form || pairs) {
       headers['content-type'] = 'application/x-www-form-urlencoded';
-      body = new URLSearchParams({ _csrf: jar.csrf, ...form }).toString();
+      body = new URLSearchParams(pairs || { _csrf: jar.csrf, ...form }).toString();
     }
     const res = await fetch(base + url, { method, headers, body, redirect: 'manual' });
     for (const c of res.headers.getSetCookie()) {
@@ -46,6 +46,7 @@ function client() {
   return {
     get: (u) => req('GET', u),
     post: (u, f) => req('POST', u, f),
+    postRaw: (u, pairs) => req('POST', u, null, [['_csrf', jar.csrf], ...pairs]),
     async login(login, password) {
       await req('GET', '/login');
       return req('POST', '/login', { login, password });
@@ -195,4 +196,26 @@ test('import understands Turkmen headers', async () => {
   await c.post('/admin/import/apply', { text, mode: 'upsert', stock: 'replace' });
   const row = db.prepare("SELECT o.price, o.quantity, d.dosage FROM offers o JOIN drugs d ON d.id = o.drug_id WHERE d.name = 'Türkmen dermany'").get();
   assert.deepEqual({ ...row }, { price: 12.5, quantity: 7, dosage: '5 mg' });
+});
+
+test('pharmacy with several phone numbers', async () => {
+  const c = client();
+  await c.login('admin', 'admin123');
+  // repeated fields, as the browser sends them
+  const form = [['name', 'Телефонная'], ['login', 'phones1'], ['password', 'pass123'],
+    ['phone_type', 'work'], ['phone_number', '+993 12 11-22-33'],
+    ['phone_type', 'mobile'], ['phone_number', '+993 65 44-55-66'],
+    ['phone_type', 'other'], ['phone_number', '  ']];
+  const r = await c.postRaw('/admin/pharmacies', form);
+  assert.equal(r.status, 302);
+  const p = db.prepare("SELECT * FROM pharmacies WHERE name = 'Телефонная'").get();
+  assert.equal(p.phone, '+993 12 11-22-33');
+  assert.deepEqual(JSON.parse(p.phones), [{ type: 'work', number: '+993 12 11-22-33' }, { type: 'mobile', number: '+993 65 44-55-66' }]);
+
+  const page = await c.get(`/pharmacy/${p.id}`);
+  assert.match(page.text, /href="tel:\+99365445566"/);
+  assert.match(page.text, /Мобильный:/);
+
+  const edit = await c.get(`/admin/pharmacies/${p.id}`);
+  assert.equal((edit.text.match(/name="phone_number"/g) || []).length, 3, 'two rows + template');
 });

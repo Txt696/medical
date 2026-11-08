@@ -149,6 +149,24 @@
     });
   }
 
+  // Pharmacy form: add / remove phone number rows
+  document.querySelectorAll('[data-phones]').forEach(function (box) {
+    const rows = box.querySelector('.phone-rows');
+    const tpl = box.querySelector('[data-phone-template]');
+    box.querySelector('[data-phone-add]').addEventListener('click', function () {
+      rows.appendChild(tpl.content.cloneNode(true));
+      rows.lastElementChild.querySelector('input').focus();
+    });
+    rows.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-phone-remove]');
+      if (!btn) return;
+      const row = btn.closest('.phone-row');
+      // keep one (empty) row so the field does not disappear
+      if (rows.children.length > 1) row.remove();
+      else row.querySelector('input').value = '';
+    });
+  });
+
   // Language menu: close on outside click or Escape
   const langMenu = document.querySelector('details.lang-switch');
   if (langMenu) {

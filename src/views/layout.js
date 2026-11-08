@@ -85,12 +85,12 @@ function layout(ctx, { title, body, q = '', admin = false }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title ? `${title} — ${settings.site_name}` : settings.site_name}</title>
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23119f6d'/><path d='M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z' fill='white'/></svg>">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 </head>
 <body class="${admin ? 'is-admin' : ''}">
 <header class="topbar">
   <div class="container topbar-inner">
-    <a class="logo" href="/"><span class="logo-mark">+</span><span>${settings.site_name}</span></a>
+    <a class="logo" href="/"><img class="logo-mark" src="/static/logo.svg" alt="" width="42" height="42"><span>${settings.site_name}</span></a>
     <form class="topsearch" action="/search" method="get" role="search">
       <input type="search" name="q" value="${q}" placeholder="${t('search.placeholder')}" autocomplete="off" data-suggest>
       <button type="submit">${t('search.button')}</button>

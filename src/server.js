@@ -8,6 +8,7 @@ const {
 } = require('./db');
 const { parseImport, parsePrice, parseQuantity } = require('./importer');
 const { LANGS, makeT, translate, AppError } = require('./i18n');
+const { phonesFromBody } = require('./phones');
 const pub = require('./views/public');
 const adm = require('./views/admin');
 
@@ -246,7 +247,7 @@ app.get('/drug/:id', (req, res) => {
     name: 'p.name',
   };
   const offers = db.prepare(`
-    SELECT o.*, p.name AS pharmacy_name, p.city, p.address, p.phone, p.hours
+    SELECT o.*, p.name AS pharmacy_name, p.city, p.address, p.phone, p.phones, p.hours
     FROM offers o JOIN pharmacies p ON p.id = o.pharmacy_id
     WHERE o.drug_id = ? AND p.is_active = 1 ${city ? 'AND p.city = ?' : ''}
     ORDER BY ${orders[sort]}`).all(...(city ? [drug.id, city] : [drug.id]));
@@ -589,8 +590,12 @@ admin.post('/import/apply', (req, res) => {
 
 // ----- own pharmacy profile & password -----
 
-const PHARMACY_FIELDS = ['name', 'city', 'address', 'phone', 'hours', 'website', 'description'];
-const pharmacyValues = (body) => PHARMACY_FIELDS.map((f) => str(body[f]));
+// phone and phones are filled from the list of numbers in the form (phone = the first one)
+const PHARMACY_FIELDS = ['name', 'city', 'address', 'hours', 'website', 'description', 'phone', 'phones'];
+const pharmacyValues = (body) => {
+  const phones = phonesFromBody(body);
+  return [...PHARMACY_FIELDS.slice(0, -2).map((f) => str(body[f])), phones[0] ? phones[0].number : '', JSON.stringify(phones)];
+};
 
 admin.get('/profile', (req, res) => {
   if (!req.user.pharmacy_id) return res.redirect('/admin/pharmacies');

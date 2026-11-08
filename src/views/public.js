@@ -1,6 +1,7 @@
 'use strict';
 const { html } = require('../html');
 const { layout, money, dateFmt, drugTitle, qs, pagination } = require('./layout');
+const { parsePhones, telHref } = require('../phones');
 
 function rxBadge(ctx, d) {
   return d.rx ? html`<span class="badge badge-rx" title="${ctx.t('drug.rx_title')}">Rx</span>` : '';
@@ -190,7 +191,9 @@ function drugPage(ctx, { drug, offers, analogs, city, cities, sort }) {
           </div>
           <div class="offer-stock small">${out ? html`<span class="muted">${t('stock.out')}</span>` : o.quantity ? t('stock.in_qty', { n: o.quantity }) : t('stock.in')}<br><span class="muted">${t('drug.updated', { date: dateFmt(ctx, o.updated_at) })}</span></div>
           <div class="offer-price">${money(ctx, o.price)}</div>
-          <div class="offer-action">${o.phone ? html`<a class="btn btn-small" href="tel:${o.phone.replace(/[^\d+]/g, '')}">${o.phone}</a>` : ''}</div>
+          <div class="offer-action">${parsePhones(o.phones).map((ph, i) => (i === 0
+            ? html`<a class="btn btn-small" href="${telHref(ph.number)}" title="${t(`phone.${ph.type}`)}">${ph.number}</a>`
+            : html`<a class="phone-extra small" href="${telHref(ph.number)}"><span class="muted">${t(`phone.${ph.type}`)}:</span> ${ph.number}</a>`))}</div>
         </div>`;
       })}
     </div>` : html`<div class="empty">${t('drug.no_offers')}</div>`}
@@ -238,7 +241,7 @@ function pharmacyPage(ctx, { pharmacy: p, offers, q, page, pages, total }) {
       ${p.description ? html`<p class="muted">${p.description}</p>` : ''}
     </div>
     <div class="pharm-contacts">
-      ${p.phone ? html`<a class="btn" href="tel:${p.phone.replace(/[^\d+]/g, '')}">${p.phone}</a>` : ''}
+      ${parsePhones(p.phones).map((ph, i) => html`<a class="${i === 0 ? 'btn' : 'phone-extra'}" href="${telHref(ph.number)}">${i === 0 ? '' : html`<span class="muted">${t(`phone.${ph.type}`)}:</span> `}${ph.number}</a>`)}
       ${p.hours ? html`<div>🕒 ${p.hours}</div>` : ''}
       ${p.website ? html`<div><a href="${/^https?:\/\//.test(p.website) ? p.website : `https://${p.website}`}" rel="nofollow noopener" target="_blank">${p.website}</a></div>` : ''}
     </div>
