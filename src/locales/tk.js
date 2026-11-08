@@ -1,7 +1,7 @@
 'use strict';
 module.exports = {
-  'site.name': 'DermanTap',
-  'site.tagline': 'Aşgabat şäheriniň, Arkadag şäheriniň we beýleki welaýatlaryň ähli dermanhanalarynda derman bahalaryny deňeşdiriň',
+  'site.name': 'Melhem',
+  'site.tagline': 'Aşgabat şäheriniň, Arkadag şäheriniň we beýleki welaýatlaryň ähli dermanhanalarynda derman serişdeleriniň we lukmançylyk maksatly beýleki harytlaryň bahalaryny deňeşdiriň',
 
   'nav.home': 'Baş sahypa',
   'nav.catalog': 'Katalog',
@@ -58,12 +58,12 @@ module.exports = {
   'filter.all_cities': 'Ähli şäherler',
   'filter.sort': 'Tertiplemek',
   'filter.available': 'Diňe elde barlar',
-  'filter.apply': 'Ulanmak',
+  'filter.apply': 'Görkez',
   'sort.name': 'Ady boýunça',
   'sort.cheap': 'Ilki arzanlary',
   'sort.expensive': 'Ilki gymmatlary',
   'sort.offers': 'Köp dermanhanada barlar',
-  'sort.updated': 'Täze täzelenenler',
+  'sort.updated': 'Soňky täzelenenler',
   'sort.pharmacy_name': 'Dermanhananyň ady boýunça',
 
   'drug.rx_title': 'Lukmanyň resepti boýunça berilýär',
@@ -91,7 +91,7 @@ module.exports = {
 
   'login.title': 'Dermanhanalar üçin giriş',
   'login.text': 'Dermanhananyň hasabyny saýtyň administratory berýär.',
-  'login.button': 'Girmek',
+  'login.button': 'Gir',
   'notfound.title': 'Tapylmady',
   'notfound.page': 'Sahypa tapylmady',
   'notfound.drug': 'Derman tapylmady',
@@ -142,6 +142,7 @@ module.exports = {
   'admin.nav.add': '+ Goşmak',
   'admin.nav.import': 'Import',
   'admin.nav.drugs': 'Katalog',
+  'admin.nav.dictionary': 'Sözlük',
   'admin.nav.pharmacies': 'Dermanhanalar',
   'admin.nav.settings': 'Sazlamalar',
   'admin.nav.profile': 'Dermanhananyň profili',
@@ -283,10 +284,21 @@ module.exports = {
 
   'settings.title': 'Saýtyň sazlamalary',
   'settings.empty_hint': 'Ady we şygary her dil üçin aýratyn bellenýär. Boş meýdança — adaty tekst ulanylýar (çal reňkde görkezilen).',
+  'settings.translate_hint': 'Teksti bir dilde düzediň — beýleki diller sözlükdäki terjime bilen doldurylar. El bilen düzeden meýdançalaryňyz üýtgemeýär.',
   'settings.site_name': 'Saýtyň ady',
   'settings.tagline': 'Şygar',
   'settings.currency': 'Pul birligi (bahalar nähili ýazylmaly)',
   'settings.default_lang': 'Adaty dil',
+  'tr.exact': 'Sözlük boýunça terjime edildi',
+  'tr.draft': 'Terjimäniň garalamasy: käbir sözler sözlükde ýok — barlaň we düzediň',
+  'dict.title': 'Terjime sözlügi',
+  'dict.hint': 'Saýt bu sözlük arkaly ady we şygary beýleki dillere özi terjime edýär. Tutuş sözlemleri goşuň — şonda terjime tebigy bolar. Sazlamalarda ýatda saklanan terjimeler bu ýere awtomatik goşulýar.',
+  'dict.add': 'Terjime goş',
+  'dict.search': 'Sözlükde gözle',
+  'dict.mine': 'Siziň terjimeleriňiz',
+  'dict.empty': 'Entek öz terjimeleriňiz ýok.',
+  'dict.builtin': 'Içki sözlük',
+  'dict.confirm_delete': 'Bu terjimäni pozmalymy?',
 
   'err.session_expired': 'Sessiýanyň möhleti geçdi. Yza gaýdyň, sahypany täzeläň we gaýtadan synanyşyň.',
   'err.too_many_attempts': 'Synanyşyk gaty köp. 15 minutdan soň synanyşyň.',
@@ -308,6 +320,7 @@ module.exports = {
   'err.pharmacy_name': 'Dermanhananyň adyny görkeziň',
   'err.login_format': 'Login: 3–40 nyşan, latyn harplary, sanlar, nokat, defis, aşaky çyzyk',
   'err.login_taken': 'Bu login eýýäm eýelenen',
+  'err.dict_empty': 'Terjimäni üç dilde hem dolduryň',
   'err.server': 'Serweriň içki ýalňyşlygy',
 
   'flash.saved_drug': 'Ýatda saklandy: {title}',
@@ -329,4 +342,6 @@ module.exports = {
   'flash.user_password': '{login} üçin açar söz çalşyldy',
   'flash.user_deleted': 'Ulanyjy pozuldy',
   'flash.settings_saved': 'Sazlamalar ýatda saklandy',
+  'flash.dict_saved': 'Terjime ýatda saklandy',
+  'flash.dict_deleted': 'Terjime pozuldy',
 };

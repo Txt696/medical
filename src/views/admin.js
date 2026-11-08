@@ -374,14 +374,17 @@ function settingsPage(ctx) {
   const s = ctx.rawSettings;
   const body = html`
   <div class="page-head"><h1>${t('settings.title')}</h1></div>
-  <form method="post" action="/admin/settings" class="form card">
+  <form method="post" action="/admin/settings" class="form card" data-translate="/admin/translate" data-tr-exact="${t('tr.exact')}" data-tr-draft="${t('tr.draft')}">
     ${csrf(ctx)}
     <p class="muted small">${t('settings.empty_hint')}</p>
+    <p class="muted small">${t('settings.translate_hint')} <a href="/admin/dictionary">${t('admin.nav.dictionary')}</a></p>
     ${Object.entries(LANGS).map(([code, l]) => html`<fieldset>
       <legend>${l.label}</legend>
       <div class="grid-2">
-        <label>${t('settings.site_name')}<input name="site_name_${code}" value="${s[`site_name_${code}`] || ''}" placeholder="${ctx.tIn(code, 'site.name')}"></label>
-        <label>${t('settings.tagline')}<input name="site_tagline_${code}" value="${s[`site_tagline_${code}`] || ''}" placeholder="${ctx.tIn(code, 'site.tagline')}"></label>
+        <label>${t('settings.site_name')}<input name="site_name_${code}" value="${s[`site_name_${code}`] || ''}" placeholder="${ctx.tIn(code, 'site.name')}" data-tr-group="site_name" data-tr-lang="${code}" lang="${code}">
+          <small class="tr-note" hidden></small></label>
+        <label>${t('settings.tagline')}<textarea name="site_tagline_${code}" rows="2" placeholder="${ctx.tIn(code, 'site.tagline')}" data-tr-group="site_tagline" data-tr-lang="${code}" lang="${code}">${s[`site_tagline_${code}`] || ''}</textarea>
+          <small class="tr-note" hidden></small></label>
       </div>
     </fieldset>`)}
     <div class="grid-2">
@@ -395,7 +398,51 @@ function settingsPage(ctx) {
   return page(ctx, t('admin.nav.settings'), body);
 }
 
+function dictionaryPage(ctx, { q, entries, builtin }) {
+  const { t } = ctx;
+  const codes = Object.keys(LANGS);
+  const first = (v) => [].concat(v)[0];
+  const fields = (e = {}) => codes.map((code) => html`<label>${LANGS[code].label}
+    <textarea name="${code}" rows="2" lang="${code}" required>${e[code] || ''}</textarea></label>`);
+  const body = html`
+  <div class="page-head"><h1>${t('dict.title')}</h1></div>
+  <p class="muted">${t('dict.hint')}</p>
+
+  <form method="post" action="/admin/dictionary" class="form card">
+    ${csrf(ctx)}
+    <h2>${t('dict.add')}</h2>
+    <div class="grid-3">${fields()}</div>
+    <div class="form-actions"><button class="btn">${t('action.add')}</button></div>
+  </form>
+
+  <form method="get" action="/admin/dictionary" class="toolbar">
+    <input type="search" name="q" value="${q}" placeholder="${t('dict.search')}">
+    <button class="btn btn-ghost">${t('search.button')}</button>
+  </form>
+
+  <h2>${t('dict.mine')} <span class="muted small">${entries.length}</span></h2>
+  ${entries.length ? entries.map((e) => html`<div class="card dict-row">
+    <form method="post" action="/admin/dictionary" class="form">
+      ${csrf(ctx)}<input type="hidden" name="id" value="${e.id}">
+      <div class="grid-3">${fields(e)}</div>
+      <div class="form-actions"><button class="btn btn-small">${t('action.save')}</button></div>
+    </form>
+    <form method="post" action="/admin/dictionary/${e.id}/delete" class="inline" data-confirm="${t('dict.confirm_delete')}">
+      ${csrf(ctx)}<button class="linklike danger">${t('action.delete')}</button>
+    </form>
+  </div>`) : html`<p class="muted">${t('dict.empty')}</p>`}
+
+  <details class="card">
+    <summary>${t('dict.builtin')} (${builtin.length})</summary>
+    <table class="table small">
+      <thead><tr>${codes.map((code) => html`<th>${LANGS[code].label}</th>`)}</tr></thead>
+      <tbody>${builtin.map((e) => html`<tr>${codes.map((code) => html`<td>${first(e[code])}</td>`)}</tr>`)}</tbody>
+    </table>
+  </details>`;
+  return page(ctx, t('dict.title'), body);
+}
+
 module.exports = {
   dashboard, offers, offerNew, importForm, importPreview, drugs, drugEdit, pharmacies, pharmacyEdit, profile, account,
-  settingsPage, noPharmacies,
+  settingsPage, dictionaryPage, noPharmacies,
 };

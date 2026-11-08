@@ -338,3 +338,16 @@ a.lang-item:hover { background: var(--green-soft); text-decoration: none; }
 .phone-extra { display: block; margin-top: 6px; white-space: nowrap; }
 .offer-action .phone-extra { font-size: 13px; white-space: normal; }
 .pharm-contacts .phone-extra { margin-top: 0; }
+
+/* automatic translation (settings) and dictionary */
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; }
+.tr-note { display: block; margin-top: 4px; font-size: 13px; font-weight: 400; color: var(--green-dark); }
+.tr-note.tr-draft { color: #9a6700; }
+textarea.tr-auto, input.tr-auto { background: var(--green-soft); }
+textarea.tr-auto.tr-draft, input.tr-auto.tr-draft { background: #fff8e1; }
+.toolbar { display: flex; gap: 8px; margin: 20px 0 8px; }
+.toolbar input { flex: 1; }
+.dict-row { position: relative; }
+.dict-row form.inline { position: absolute; right: 18px; bottom: 18px; }
+.linklike.danger { color: var(--red); }
+@media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }

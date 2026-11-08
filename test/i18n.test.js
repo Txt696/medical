@@ -35,3 +35,10 @@ test('plurals and parameters', () => {
   assert.equal(translate('en', 'n.pharmacies', { n: 2 }), '2 pharmacies');
   assert.equal(translate('tk', 'n.pharmacies', { n: 5 }), '5 dermanhana');
 });
+
+test('every language uses the same {placeholders}', () => {
+  const marks = (v) => [...new Set([].concat(typeof v === 'object' ? Object.values(v) : v).join(' ').match(/\{\w+\}/g) || [])].sort();
+  for (const k of Object.keys(dicts.ru)) {
+    for (const lang of ['tk', 'en']) assert.deepEqual(marks(dicts[lang][k]), marks(dicts.ru[k]), `${lang}: ${k}`);
+  }
+});

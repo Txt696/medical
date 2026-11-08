@@ -1,7 +1,7 @@
 'use strict';
 module.exports = {
-  'site.name': 'PharmaFind',
-  'site.tagline': 'Compare medicine prices across all pharmacies in Ashgabat, Arkadag and other velayats',
+  'site.name': 'Melhem',
+  'site.tagline': 'Compare prices of medicines and other medical products across all pharmacies in Ashgabat, Arkadag and other velayats',
 
   'nav.home': 'Home',
   'nav.catalog': 'Catalogue',
@@ -142,6 +142,7 @@ module.exports = {
   'admin.nav.add': '+ Add',
   'admin.nav.import': 'Import',
   'admin.nav.drugs': 'Catalogue',
+  'admin.nav.dictionary': 'Dictionary',
   'admin.nav.pharmacies': 'Pharmacies',
   'admin.nav.settings': 'Settings',
   'admin.nav.profile': 'Pharmacy profile',
@@ -283,10 +284,21 @@ module.exports = {
 
   'settings.title': 'Site settings',
   'settings.empty_hint': 'Name and tagline are set per language. Leave a field empty to use the default text (shown in grey).',
+  'settings.translate_hint': 'Correct the text in one language and the other languages are filled in from the dictionary. Fields you have edited by hand are left as they are.',
   'settings.site_name': 'Site name',
   'settings.tagline': 'Tagline',
   'settings.currency': 'Currency (how prices are labelled)',
   'settings.default_lang': 'Default language',
+  'tr.exact': 'Translated from the dictionary',
+  'tr.draft': 'Draft translation: some words are not in the dictionary — please check and correct it',
+  'dict.title': 'Translation dictionary',
+  'dict.hint': 'The site uses this dictionary to translate the name and tagline into the other languages. Add whole phrases so the translation reads naturally. Translations saved in Settings are added here automatically.',
+  'dict.add': 'Add a translation',
+  'dict.search': 'Search the dictionary',
+  'dict.mine': 'Your translations',
+  'dict.empty': 'No translations of your own yet.',
+  'dict.builtin': 'Built-in dictionary',
+  'dict.confirm_delete': 'Delete this translation?',
 
   'err.session_expired': 'Your session has expired. Go back, reload the page and try again.',
   'err.too_many_attempts': 'Too many attempts. Try again in 15 minutes.',
@@ -308,6 +320,7 @@ module.exports = {
   'err.pharmacy_name': 'Enter the pharmacy name',
   'err.login_format': 'Login: 3–40 characters, Latin letters, digits, dot, hyphen, underscore',
   'err.login_taken': 'This login is already taken',
+  'err.dict_empty': 'Fill in the translation in all three languages',
   'err.server': 'Internal server error',
 
   'flash.saved_drug': 'Saved: {title}',
@@ -329,4 +342,6 @@ module.exports = {
   'flash.user_password': 'Password for {login} changed',
   'flash.user_deleted': 'User deleted',
   'flash.settings_saved': 'Settings saved',
+  'flash.dict_saved': 'Translation saved',
+  'flash.dict_deleted': 'Translation deleted',
 };

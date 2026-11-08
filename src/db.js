@@ -17,6 +17,15 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- translations of site texts saved by the administrator (see src/translate.js)
+CREATE TABLE IF NOT EXISTS dictionary (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  tk         TEXT NOT NULL,
+  ru         TEXT NOT NULL,
+  en         TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS pharmacies (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL,
@@ -86,7 +95,7 @@ if (!db.prepare('PRAGMA table_info(pharmacies)').all().some((c) => c.name === 'p
 // Site name and tagline are stored per language (site_name_ru, site_tagline_tk…);
 // empty values fall back to the translations in src/locales.
 const DEFAULT_SETTINGS = {
-  currency: 'руб.',
+  currency: 'TMT',
   default_lang: 'ru',
 };
 

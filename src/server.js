@@ -9,6 +9,7 @@ const {
 const { parseImport, parsePrice, parseQuantity } = require('./importer');
 const { LANGS, makeT, translate, AppError } = require('./i18n');
 const { phonesFromBody } = require('./phones');
+const { LANG_CODES, key: trKey, translateText, translateAll, remember, userEntries, BUILTIN } = require('./translate');
 const pub = require('./views/public');
 const adm = require('./views/admin');
 
@@ -794,11 +795,65 @@ admin.post('/users/:id/delete', adminOnly, (req, res) => {
 
 admin.get('/settings', adminOnly, (req, res) => res.send(String(adm.settingsPage(ctx(req)))));
 
-admin.post('/settings', adminOnly, (req, res) => {
-  for (const code of Object.keys(LANGS)) {
-    setSetting(`site_name_${code}`, str(req.body[`site_name_${code}`]));
-    setSetting(`site_tagline_${code}`, str(req.body[`site_tagline_${code}`]));
+// Name and slogan per language. If the text was corrected in one language and the others
+// were left as they were (or empty), they get the dictionary translation of the new text.
+// A complete set of three languages is remembered in the dictionary.
+function syncTranslations(field, before, body) {
+  const codes = Object.keys(LANGS);
+  const now = Object.fromEntries(codes.map((c) => [c, str(body[`${field}_${c}`])]));
+  const changed = codes.filter((c) => now[c] && now[c] !== (before[`${field}_${c}`] || ''));
+  const source = changed.length === 1 ? changed[0] : codes.find((c) => now[c]);
+  let stale = false;
+  if (source) {
+    for (const c of codes) {
+      if (c === source) continue;
+      const untouched = !now[c] || (changed.length === 1 && now[c] === (before[`${field}_${c}`] || ''));
+      if (!untouched) continue;
+      const tr = translateText(now[source], source, c);
+      if (tr.exact) now[c] = tr.text;
+      else if (now[c]) stale = true;
+    }
   }
+  if (!stale) remember(now);
+  for (const c of codes) setSetting(`${field}_${c}`, now[c]);
+}
+
+admin.get('/translate', adminOnly, (req, res) => {
+  const from = LANGS[req.query.from] ? req.query.from : 'ru';
+  res.json(translateAll(str(req.query.text).slice(0, 2000), from));
+});
+
+// ----- administrator: dictionary for automatic translation -----
+
+admin.get('/dictionary', adminOnly, (req, res) => {
+  const q = trKey(str(req.query.q));
+  const match = (e) => !q || LANG_CODES.some((l) => trKey([].concat(e[l]).join(' ')).includes(q));
+  res.send(String(adm.dictionaryPage(ctx(req), { q: str(req.query.q), entries: userEntries().reverse().filter(match), builtin: BUILTIN.filter(match) })));
+});
+
+admin.post('/dictionary', adminOnly, (req, res) => {
+  const texts = Object.fromEntries(LANG_CODES.map((l) => [l, str(req.body[l])]));
+  const id = intParam(req.body.id, 0);
+  if (LANG_CODES.some((l) => !texts[l])) {
+    flash(res, req.t('err.dict_empty'), 'error');
+    return res.redirect('/admin/dictionary');
+  }
+  if (id) db.prepare('DELETE FROM dictionary WHERE id = ?').run(id);
+  remember(texts);
+  flash(res, req.t('flash.dict_saved'));
+  res.redirect('/admin/dictionary');
+});
+
+admin.post('/dictionary/:id/delete', adminOnly, (req, res) => {
+  db.prepare('DELETE FROM dictionary WHERE id = ?').run(intParam(req.params.id, 0));
+  flash(res, req.t('flash.dict_deleted'));
+  res.redirect('/admin/dictionary');
+});
+
+admin.post('/settings', adminOnly, (req, res) => {
+  const before = getSettings();
+  syncTranslations('site_name', before, req.body);
+  syncTranslations('site_tagline', before, req.body);
   deleteSetting('site_name');
   deleteSetting('site_tagline');
   if (str(req.body.currency)) setSetting('currency', str(req.body.currency));

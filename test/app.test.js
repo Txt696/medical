@@ -85,7 +85,7 @@ test('pharmacy adds product manually, then via import, and it shows on the site'
 
   r = await c.get(`/drug/${drug.id}`);
   assert.match(r.text, /Аптека 1/);
-  assert.match(r.text, /28 руб\./);
+  assert.match(r.text, /28 TMT/);
 
   // replace mode removes items missing from the list
   r = await c.post('/admin/import/apply', { text: 'Парацетамол таблетки 500мг №20 27', mode: 'replace' });
@@ -219,4 +219,34 @@ test('pharmacy with several phone numbers', async () => {
   const edit = await c.get(`/admin/pharmacies/${p.id}`);
   assert.equal((edit.text.match(/name="phone_number"/g) || []).length, 4, 'two rows + empty row + template');
   assert.match(edit.text, /\/static\/app\.js\?v=[0-9a-f]{10}/);
+});
+
+test('settings: a text corrected in one language is translated into the others', async () => {
+  const c = client();
+  await c.login('admin', 'admin123');
+  const { getSettings } = require('../src/db');
+  const old = { tk: 'Köne', ru: 'Старый', en: 'Old' };
+  const form = (tagline) => ({
+    currency: 'TMT', default_lang: 'ru',
+    ...Object.fromEntries(Object.entries(tagline).map(([l, v]) => [`site_tagline_${l}`, v])),
+    site_name_tk: 'Melhem', site_name_ru: '', site_name_en: '',
+  });
+  await c.post('/admin/settings', form(old));
+
+  // only Russian changed → Turkmen and English follow from the dictionary
+  const ru = 'Сравните цены на лекарственные средства и другие средства медицинского назначения во всех аптеках города Ашхабад, города Аркадаг и других велаятах';
+  assert.equal((await c.post('/admin/settings', form({ ...old, ru }))).status, 302);
+  let s = getSettings();
+  assert.equal(s.site_tagline_ru, ru);
+  assert.match(s.site_tagline_en, /^Compare prices of medicines and other medical products/);
+  assert.match(s.site_tagline_tk, /lukmançylyk maksatly/);
+  assert.equal(s.site_name_ru, 'Мелхем', 'empty name filled from Turkmen');
+
+  // the administrator's own wording is remembered for next time
+  await c.post('/admin/settings', form({ ru: 'Аптеки рядом', tk: 'Golaýdaky dermanhanalar', en: 'Pharmacies nearby' }));
+  const r = await c.get('/admin/translate?from=en&text=' + encodeURIComponent('pharmacies nearby'));
+  assert.deepEqual(JSON.parse(r.text).ru, { text: 'Аптеки рядом', exact: true });
+  assert.match((await c.get('/admin/dictionary')).text, /Golaýdaky dermanhanalar/);
+  s = getSettings();
+  assert.equal(s.site_tagline_tk, 'Golaýdaky dermanhanalar');
 });

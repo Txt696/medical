@@ -167,6 +167,50 @@
     });
   });
 
+  // Settings: text corrected in one language is translated into the others by the dictionary.
+  // A field the administrator has edited by hand is never overwritten.
+  document.querySelectorAll('form[data-translate]').forEach(function (form) {
+    const fields = form.querySelectorAll('[data-tr-group]');
+    fields.forEach(function (f) { f.dataset.orig = f.value; });
+
+    function note(f, exact) {
+      const n = f.parentNode.querySelector('.tr-note');
+      f.classList.add('tr-auto');
+      f.classList.toggle('tr-draft', !exact);
+      if (!n) return;
+      n.hidden = false;
+      n.textContent = exact ? form.dataset.trExact : form.dataset.trDraft;
+      n.classList.toggle('tr-draft', !exact);
+    }
+
+    fields.forEach(function (src) {
+      src.addEventListener('input', function () {
+        src.dataset.manual = '1';
+        src.classList.remove('tr-auto', 'tr-draft');
+        const n = src.parentNode.querySelector('.tr-note');
+        if (n) n.hidden = true;
+      });
+      src.addEventListener('change', function () {
+        const text = src.value.trim();
+        if (!text) return;
+        const url = form.dataset.translate + '?from=' + encodeURIComponent(src.dataset.trLang) + '&text=' + encodeURIComponent(text);
+        fetch(url, { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (res) {
+            if (!res) return;
+            form.querySelectorAll('[data-tr-group="' + src.dataset.trGroup + '"]').forEach(function (f) {
+              const tr = res[f.dataset.trLang];
+              if (f === src || !tr || (f.dataset.manual && f.value !== f.dataset.orig)) return;
+              f.value = tr.text;
+              delete f.dataset.manual;
+              note(f, tr.exact);
+            });
+          })
+          .catch(function () { /* offline: leave the fields as they are */ });
+      });
+    });
+  });
+
   // Language menu: close on outside click or Escape
   const langMenu = document.querySelector('details.lang-switch');
   if (langMenu) {

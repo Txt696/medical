@@ -151,7 +151,7 @@ function adminNav(ctx) {
       ${link('/admin/offers/new', t('admin.nav.add'))}
       ${link('/admin/import', t('admin.nav.import'))}
       ${user.role === 'admin'
-        ? [link('/admin/drugs', t('admin.nav.drugs')), link('/admin/pharmacies', t('admin.nav.pharmacies')), link('/admin/settings', t('admin.nav.settings'))]
+        ? [link('/admin/drugs', t('admin.nav.drugs')), link('/admin/pharmacies', t('admin.nav.pharmacies')), link('/admin/dictionary', t('admin.nav.dictionary')), link('/admin/settings', t('admin.nav.settings'))]
         : link('/admin/profile', t('admin.nav.profile'))}
     </div>
     <div class="adminbar-user">
