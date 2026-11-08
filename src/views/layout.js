@@ -104,7 +104,7 @@ function layout(ctx, { title, body, q = '', admin = false }) {
 <body class="${admin ? 'is-admin' : ''}">
 <header class="topbar">
   <div class="container topbar-inner">
-    <a class="logo" href="/"><img class="logo-mark" src="${asset('logo.svg')}" alt="" width="42" height="42"><span>${settings.site_name}</span></a>
+    <a class="logo" href="/"><img class="logo-mark" src="${asset('logo.svg')}" alt="" width="40" height="40"><span>${settings.site_name}</span></a>
     <form class="topsearch" action="/search" method="get" role="search">
       <input type="search" name="q" value="${q}" placeholder="${t('search.placeholder')}" autocomplete="off" data-suggest>
       <button type="submit">${t('search.button')}</button>

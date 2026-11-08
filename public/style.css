@@ -44,7 +44,7 @@ h3 { font-size: 17px; margin: 20px 0 8px; }
 .topbar-inner { display: flex; align-items: center; gap: 20px; height: 64px; }
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 19px; color: var(--text); white-space: nowrap; }
 .logo:hover { text-decoration: none; }
-.logo-mark { width: 42px; height: 42px; margin: -4px -2px -4px -6px; flex-shrink: 0; display: block; }
+.logo-mark { width: 40px; height: 40px; margin: -4px 0 -4px -4px; flex-shrink: 0; display: block; }
 .topsearch { flex: 1; display: flex; position: relative; max-width: 560px; }
 .topsearch input { flex: 1; border-radius: 10px 0 0 10px; }
 .topsearch button { border-radius: 0 10px 10px 0; }
